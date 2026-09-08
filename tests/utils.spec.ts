@@ -55,6 +55,7 @@ test('diffTable', () => {
 		},
 	];
 	const defaultOptions = {
+		compression: 'gzip' as const,
 		showTotal: true,
 		collapseUnchanged: true,
 		omitUnchanged: false,
@@ -121,6 +122,7 @@ test('diffTable with gzip information', () => {
 		{ filename: 'four.js', size: 90, delta: 90 }
 	];
 	const options = {
+		compression: 'none' as const,
 		showTotal: true,
 		collapseUnchanged: true,
 		omitUnchanged: false,
@@ -135,7 +137,7 @@ test('diffTable with gzip information', () => {
 	expect(out).toContain('**Total Gzip Size:** 3.31 kB');
 
 	// Primary tables keep their usual shape.
-	expect(out).toContain('<details open><summary>📦 <strong>View Changed</strong></summary>');
+	expect(out).toContain('<details open><summary>📦 <strong>View Changed (uncompressed)</strong></summary>');
 	expect(out).toContain('| `one.js` | 5 kB | +2.5 kB (+100%) | 🆘 |');
 	expect(out).toContain('| Filename | Size | Change |  |');
 	expect(out).not.toContain('| Gzip Size |');
@@ -154,4 +156,13 @@ test('diffTable with gzip information', () => {
 	const plain = diffTable(files, options);
 	expect(plain).not.toContain('Gzip');
 	expect(plain).not.toContain('gzip');
+});
+
+test('diffTable names the compression method in the title', () => {
+	const files = [{ filename: 'one.js', size: 5000, delta: 2500 }];
+	const options = { sortBy: 'Filename:asc' as const };
+
+	expect(diffTable(files, { ...options, compression: 'gzip' })).toContain('📦 <strong>View Changed (gzip)</strong>');
+	expect(diffTable(files, { ...options, compression: 'brotli' })).toContain('📦 <strong>View Changed (brotli)</strong>');
+	expect(diffTable(files, { ...options, compression: 'none' })).toContain('📦 <strong>View Changed (uncompressed)</strong>');
 });

@@ -5,7 +5,7 @@ exports[`src/index.ts > builds both branches and posts a new PR comment 1`] = `
 
 **Total Size:** 1.6 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |

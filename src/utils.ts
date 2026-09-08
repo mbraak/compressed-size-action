@@ -4,6 +4,7 @@ import { EOL } from 'os';
 import prettyBytes from 'pretty-bytes';
 
 import type { Diff } from './fileSizes';
+import type { CompressionMethod } from './compression';
 
 export interface PackageManagerInfo {
 	packageManager: string;
@@ -149,6 +150,8 @@ export type SortOrder = 'asc' | 'desc';
 export type SortBy = `${DiffTableColumn}:${SortOrder}`;
 
 export interface DiffTableOptions {
+	/** Compression the sizes were measured with; shown in the "View Changed" title. */
+	compression: CompressionMethod;
 	showTotal?: boolean;
 	collapseUnchanged?: boolean;
 	omitUnchanged?: boolean;
@@ -179,6 +182,10 @@ function sizeRow({ filename, size, delta }: Diff): string[] {
 	];
 }
 
+function compressionLabel(compression: CompressionMethod): string {
+	return compression === 'none' ? 'uncompressed' : compression;
+}
+
 function detailsSection(title: string, rows: string[][], open: boolean): string {
 	return `<details${open ? ' open' : ''}><summary>${title}</summary>\n\n${markdownTable(COLUMNS, rows)}\n\n</details>`;
 }
@@ -191,7 +198,7 @@ function detailsSection(title: string, rows: string[][], open: boolean): string 
  */
 export function diffTable(
 	files: Diff[],
-	{ showTotal, collapseUnchanged, omitUnchanged, minimumChangeThreshold = 1, sortBy }: DiffTableOptions,
+	{ compression, showTotal, collapseUnchanged, omitUnchanged, minimumChangeThreshold = 1, sortBy }: DiffTableOptions,
 	gzipFiles?: Diff[]
 ): string {
 	const changedRows: string[][] = [];
@@ -240,7 +247,7 @@ export function diffTable(
 	let out = '';
 
 	if (changedRows.length !== 0) {
-		out = detailsSection('📦 <strong>View Changed</strong>', changedRows, true);
+		out = detailsSection(`📦 <strong>View Changed (${compressionLabel(compression)})</strong>`, changedRows, true);
 	}
 
 	if (gzipChangedRows.length !== 0) {

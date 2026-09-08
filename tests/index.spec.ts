@@ -571,7 +571,7 @@ describe('src/index.ts', () => {
 		expect(body).toContain('**Gzip Change:** +500 B (+14.29%)');
 		expect(body).toContain('**Total Size:** 12 kB');
 		expect(body).toContain('**Total Gzip Size:** 4 kB');
-		expect(body).toContain('<summary>📦 <strong>View Changed</strong></summary>');
+		expect(body).toContain('<summary>📦 <strong>View Changed (uncompressed)</strong></summary>');
 		expect(body).toContain('| `dist/index.js` | 12 kB | +2 kB (+20%) | 🚨 |');
 		expect(body).toContain('<summary>📦 <strong>View Changed (gzip)</strong></summary>');
 		expect(body).toContain('| `dist/index.js` | 4 kB | +500 B (+14.29%) | ⚠️ |');
@@ -584,6 +584,7 @@ describe('src/index.ts', () => {
 
 		expect(failure).toBeNull();
 		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
+		expect(body).toContain('📦 <strong>View Changed (brotli)</strong>');
 		expect(body).not.toContain('gzip');
 		expect(body).not.toContain('Gzip');
 	});

@@ -194,6 +194,7 @@ async function run(
   const markdownDiff = diffTable(
     diff,
     {
+      compression,
       collapseUnchanged: toBool(getInput("collapse-unchanged")),
       omitUnchanged: toBool(getInput("omit-unchanged")),
       showTotal: toBool(getInput("show-total")),

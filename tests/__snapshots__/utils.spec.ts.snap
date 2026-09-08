@@ -5,7 +5,7 @@ exports[`diffTable 1`] = `
 
 **Total Size:** 21.3 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -28,7 +28,7 @@ exports[`diffTable 1`] = `
 `;
 
 exports[`diffTable 2`] = `
-"<details open><summary>📦 <strong>View Changed</strong></summary>
+"<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -55,7 +55,7 @@ exports[`diffTable 3`] = `
 
 **Total Size:** 21.3 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -73,7 +73,7 @@ exports[`diffTable 4`] = `
 
 **Total Size:** 21.3 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -89,7 +89,7 @@ exports[`diffTable 5`] = `
 
 **Total Size:** 21.3 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -138,7 +138,7 @@ exports[`diffTable 7`] = `
 
 **Total Size:** 5 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -152,7 +152,7 @@ exports[`diffTable 8`] = `
 
 **Total Size:** 21.3 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -179,7 +179,7 @@ exports[`diffTable 9`] = `
 
 **Total Size:** 21.3 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -206,7 +206,7 @@ exports[`diffTable 10`] = `
 
 **Total Size:** 21.3 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
@@ -237,7 +237,7 @@ exports[`diffTable with gzip information 1`] = `
 
 **Total Gzip Size:** 3.31 kB
 
-<details open><summary>📦 <strong>View Changed</strong></summary>
+<details open><summary>📦 <strong>View Changed (uncompressed)</strong></summary>
 
 | Filename | Size | Change |  |
 | :--- | :---: | :---: | :---: |
