@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
 	context: {} as Record<string, any>,
 	/** Sizes returned by successive `readFromDisk` calls: first the PR build, then the base build. */
 	sizes: [] as FileSizeMap[],
+	/** Same, for the extra gzip instance created when the compression input is `none`. */
+	gzipSizes: [] as FileSizeMap[],
 	/** Commands that should throw when passed to `exec`. */
 	execFailures: {} as Record<string, Error>,
 	execCalls: [] as string[],
@@ -51,7 +53,8 @@ vi.mock('../src/fileSizes', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../src/fileSizes')>();
 	class FileSizes extends actual.FileSizes {
 		override readFromDisk = async (): Promise<FileSizeMap> => {
-			const sizes = mocks.sizes.shift() ?? {};
+			const isGzipCompanion = mocks.inputs.compression === 'none' && this.options.compression === 'gzip';
+			const sizes = (isGzipCompanion ? mocks.gzipSizes : mocks.sizes).shift() ?? {};
 			const result: FileSizeMap = {};
 			for (const [file, size] of Object.entries(sizes)) {
 				result[this.options.stripHash(file)] = size;
@@ -72,8 +75,8 @@ const DEFAULT_INPUTS = {
 	'sort-by': 'Filename:asc'
 };
 
-const NEW_SIZES = { 'dist/index.js': 1500, 'dist/added.js': 100 };
-const OLD_SIZES = { 'dist/index.js': 1000, 'dist/removed.js': 200 };
+const NEW_SIZES: FileSizeMap = { 'dist/index.js': 1500, 'dist/added.js': 100 };
+const OLD_SIZES: FileSizeMap = { 'dist/index.js': 1000, 'dist/removed.js': 200 };
 
 const FOOTER_REGEXP = /<a href="https:\/\/github\.com\/preactjs\/compressed-size-action"><sub>compressed-size-action(::[^<]+)?<\/sub><\/a>$/;
 
@@ -158,6 +161,7 @@ interface RunOptions {
 	inputs?: Record<string, string>;
 	context?: Record<string, any>;
 	sizes?: FileSizeMap[];
+	gzipSizes?: FileSizeMap[];
 	execFailures?: Record<string, Error>;
 	octokit?: MockOctokit;
 }
@@ -166,6 +170,7 @@ async function runAction({
 	inputs = {},
 	context = pullRequestContext(),
 	sizes = [NEW_SIZES, OLD_SIZES],
+	gzipSizes = [],
 	execFailures = {},
 	octokit = makeOctokit()
 }: RunOptions = {}) {
@@ -177,6 +182,8 @@ async function runAction({
 
 	mocks.sizes.length = 0;
 	mocks.sizes.push(...sizes.map((s) => ({ ...s })));
+	mocks.gzipSizes.length = 0;
+	mocks.gzipSizes.push(...gzipSizes.map((s) => ({ ...s })));
 
 	for (const key of Object.keys(mocks.execFailures)) delete mocks.execFailures[key];
 	Object.assign(mocks.execFailures, execFailures);
@@ -514,7 +521,7 @@ describe('src/index.ts', () => {
 	});
 
 	test('passes table options through to the markdown report', async () => {
-		const sizes = [
+		const sizes: FileSizeMap[] = [
 			{ 'dist/a.js': 1000, 'dist/b.js': 500, 'dist/c.js': 300 },
 			{ 'dist/a.js': 900, 'dist/b.js': 500, 'dist/c.js': 295 }
 		];
@@ -550,6 +557,36 @@ describe('src/index.ts', () => {
 		expect(body).toContain('| `dist/index.*****.js` | 1.2 kB | +200 B (+20%) | 🚨 |');
 		expect(body).not.toContain('abcde');
 		expect(body).not.toContain('fghij');
+	});
+
+	test('reports gzip sizes alongside uncompressed sizes when compression is none', async () => {
+		const sizes: FileSizeMap[] = [{ 'dist/index.js': 12000 }, { 'dist/index.js': 10000 }];
+		const gzipSizes: FileSizeMap[] = [{ 'dist/index.js': 4000 }, { 'dist/index.js': 3500 }];
+
+		const { failure, octokit, logs } = await runAction({ sizes, gzipSizes, inputs: { compression: 'none' } });
+
+		expect(failure).toBeNull();
+		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
+		expect(body).toContain('**Size Change:** +2 kB (+20%) 🚨');
+		expect(body).toContain('**Gzip Change:** +500 B (+14.29%)');
+		expect(body).toContain('**Total Size:** 12 kB');
+		expect(body).toContain('**Total Gzip Size:** 4 kB');
+		expect(body).toContain('<summary>📦 <strong>View Changed (uncompressed)</strong></summary>');
+		expect(body).toContain('| `dist/index.js` | 12 kB | +2 kB (+20%) | 🚨 |');
+		expect(body).toContain('<summary>📦 <strong>View Changed (gzip)</strong></summary>');
+		expect(body).toContain('| `dist/index.js` | 4 kB | +500 B (+14.29%) | ⚠️ |');
+		expect(logs).toContain(' dist/index.js ⏤ 12 kB (+2 kB)\n');
+		expect(logs).toContain(' dist/index.js ⏤ 4 kB (+500 B)\n');
+	});
+
+	test('does not measure gzip separately for other compression modes', async () => {
+		const { failure, octokit } = await runAction({ inputs: { compression: 'brotli' } });
+
+		expect(failure).toBeNull();
+		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
+		expect(body).toContain('📦 <strong>View Changed (brotli)</strong>');
+		expect(body).not.toContain('gzip');
+		expect(body).not.toContain('Gzip');
 	});
 
 	test('fails the action when the build fails', async () => {
