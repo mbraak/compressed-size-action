@@ -2,9 +2,8 @@
   "name": "compressed-size-action",
   "version": "2.10.0",
   "main": "index.js",
-  "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --minify --define:navigator={} --outfile=index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --minify --outfile=index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
