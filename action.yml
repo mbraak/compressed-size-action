@@ -39,7 +39,7 @@ inputs:
     description: 'Consider files with changes below this threshold as unchanged. Specified in bytes.'
     default: 1
   pattern:
-    description: 'minimatch pattern of files to track'
+    description: 'minimatch pattern of files to track. Several patterns can be given on separate lines; each one is reported in its own table.'
   exclude:
     description: 'minimatch pattern of files NOT to track'
   cwd:

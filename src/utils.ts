@@ -276,6 +276,40 @@ export function diffTable(
 	return out;
 }
 
+export interface PatternDiff {
+	/** The minimatch pattern the files were collected with. */
+	pattern: string;
+	files: Diff[];
+	gzipFiles?: Diff[];
+}
+
+/**
+ * Render the full report. A single pattern renders exactly like `diffTable`;
+ * with several patterns each one gets a heading and its own set of tables.
+ */
+export function diffReport(diffs: PatternDiff[], options: DiffTableOptions): string {
+	if (diffs.length === 1) {
+		const [{ files, gzipFiles }] = diffs;
+		return diffTable(files, options, gzipFiles);
+	}
+
+	return diffs
+		.map(({ pattern, files, gzipFiles }) => `### \`${pattern}\`\n\n${diffTable(files, options, gzipFiles).trim()}`)
+		.join('\n\n');
+}
+
+/**
+ * Split the `pattern` input into individual patterns, one per line.
+ * Falls back to the default when the input is empty.
+ */
+export function parsePatterns(input: string, fallback: string): string[] {
+	const patterns = input
+		.split(/\r?\n/)
+		.map(pattern => pattern.trim())
+		.filter(Boolean);
+	return patterns.length ? patterns : [fallback];
+}
+
 /**
  * Convert a string "true"/"yes"/"1" argument value to a boolean
  */

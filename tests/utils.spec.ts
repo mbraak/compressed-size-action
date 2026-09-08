@@ -1,5 +1,5 @@
 import path from 'path';
-import { toBool, getDeltaText, iconForDifference, diffTable, getPackageManagerAndInstallScript, fileExists, stripHash, errorMessage } from '../src/utils';
+import { toBool, getDeltaText, iconForDifference, diffTable, diffReport, parsePatterns, getPackageManagerAndInstallScript, fileExists, stripHash, errorMessage } from '../src/utils';
 
 test('toBool', () => {
 	expect(toBool('1')).toBe(true);
@@ -165,4 +165,60 @@ test('diffTable names the compression method in the title', () => {
 	expect(diffTable(files, { ...options, compression: 'gzip' })).toContain('📦 <strong>View Changed (gzip)</strong>');
 	expect(diffTable(files, { ...options, compression: 'brotli' })).toContain('📦 <strong>View Changed (brotli)</strong>');
 	expect(diffTable(files, { ...options, compression: 'none' })).toContain('📦 <strong>View Changed (uncompressed)</strong>');
+});
+
+test('parsePatterns', () => {
+	const fallback = '**/dist/**/*.{js,mjs,cjs}';
+
+	expect(parsePatterns('', fallback)).toEqual([fallback]);
+	expect(parsePatterns('  \n\n', fallback)).toEqual([fallback]);
+	expect(parsePatterns('dist/**/*.js', fallback)).toEqual(['dist/**/*.js']);
+	// Patterns may contain commas inside braces, so only newlines separate them.
+	expect(parsePatterns('dist/**/*.{js,mjs}\n  lib/**/*.js  \r\n\nbuild/*.css\n', fallback)).toEqual([
+		'dist/**/*.{js,mjs}',
+		'lib/**/*.js',
+		'build/*.css'
+	]);
+});
+
+test('diffReport', () => {
+	const options = {
+		compression: 'gzip' as const,
+		showTotal: true,
+		collapseUnchanged: true,
+		omitUnchanged: false,
+		minimumChangeThreshold: 1,
+		sortBy: 'Filename:asc' as const
+	};
+	const app = [
+		{ filename: 'app/index.js', size: 5000, delta: 2500 },
+		{ filename: 'app/vendor.js', size: 300, delta: 0 }
+	];
+	const lib = [{ filename: 'lib/index.js', size: 1000, delta: -100 }];
+
+	// A single pattern renders exactly like diffTable, with no heading.
+	const single = diffReport([{ pattern: 'app/**/*.js', files: app.map(f => ({ ...f })) }], options);
+	expect(single).toBe(diffTable(app.map(f => ({ ...f })), options));
+	expect(single).not.toContain('###');
+
+	const multi = diffReport(
+		[
+			{ pattern: 'app/**/*.js', files: app.map(f => ({ ...f })) },
+			{ pattern: 'lib/**/*.js', files: lib.map(f => ({ ...f })) }
+		],
+		options
+	);
+	const appHeading = multi.indexOf('### `app/**/*.js`');
+	const libHeading = multi.indexOf('### `lib/**/*.js`');
+	expect(appHeading).toBe(0);
+	expect(libHeading).toBeGreaterThan(appHeading);
+	// Each block carries its own totals and tables.
+	expect(multi.slice(appHeading, libHeading)).toContain('**Total Size:** 5.3 kB');
+	expect(multi.slice(appHeading, libHeading)).toContain('| `app/index.js` | 5 kB | +2.5 kB (+100%) | 🆘 |');
+	expect(multi.slice(appHeading, libHeading)).toContain('View Unchanged');
+	expect(multi.slice(libHeading)).toContain('**Total Size:** 1 kB');
+	expect(multi.slice(libHeading)).toContain('| `lib/index.js` | 1 kB | -100 B (-9.09%) | ✅ |');
+	expect(multi.slice(libHeading)).not.toContain('View Unchanged');
+	expect(multi).not.toMatch(/\n{3,}/);
+	expect(multi).toMatchSnapshot();
 });

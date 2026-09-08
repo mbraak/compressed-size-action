@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
 	/** Commands that should throw when passed to `exec`. */
 	execFailures: {} as Record<string, Error>,
 	execCalls: [] as string[],
+	/** `pattern` of every FileSizes instance that read from disk, in call order. */
+	readPatterns: [] as string[],
 	state: { done: false, failure: null as string | null },
 	octokit: null as MockOctokit | null
 }));
@@ -53,6 +55,7 @@ vi.mock('../src/fileSizes', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../src/fileSizes')>();
 	class FileSizes extends actual.FileSizes {
 		override readFromDisk = async (): Promise<FileSizeMap> => {
+			mocks.readPatterns.push(this.options.pattern);
 			const isGzipCompanion = mocks.inputs.compression === 'none' && this.options.compression === 'gzip';
 			const sizes = (isGzipCompanion ? mocks.gzipSizes : mocks.sizes).shift() ?? {};
 			const result: FileSizeMap = {};
@@ -189,6 +192,7 @@ async function runAction({
 	Object.assign(mocks.execFailures, execFailures);
 
 	mocks.execCalls.length = 0;
+	mocks.readPatterns.length = 0;
 	mocks.state.done = false;
 	mocks.state.failure = null;
 	mocks.octokit = octokit;
@@ -199,7 +203,13 @@ async function runAction({
 		if (!mocks.state.done) throw new Error('action has not finished yet');
 	});
 
-	return { failure: mocks.state.failure, execCalls: [...mocks.execCalls], octokit, logs };
+	return {
+		failure: mocks.state.failure,
+		execCalls: [...mocks.execCalls],
+		readPatterns: [...mocks.readPatterns],
+		octokit,
+		logs
+	};
 }
 
 describe('src/index.ts', () => {
@@ -577,6 +587,50 @@ describe('src/index.ts', () => {
 		expect(body).toContain('| `dist/index.js` | 4 kB | +500 B (+14.29%) | ⚠️ |');
 		expect(logs).toContain(' dist/index.js ⏤ 12 kB (+2 kB)\n');
 		expect(logs).toContain(' dist/index.js ⏤ 4 kB (+500 B)\n');
+	});
+
+	test('uses the default pattern when none is configured', async () => {
+		const { readPatterns } = await runAction();
+
+		expect(readPatterns).toEqual(['**/dist/**/*.{js,mjs,cjs}', '**/dist/**/*.{js,mjs,cjs}']);
+	});
+
+	test('reports one table per configured pattern', async () => {
+		// Reads happen per pattern in order: PR build for both, then base build for both.
+		const sizes: FileSizeMap[] = [
+			{ 'packages/app/dist/index.js': 5000 },
+			{ 'packages/lib/dist/index.js': 1000 },
+			{ 'packages/app/dist/index.js': 2500 },
+			{ 'packages/lib/dist/index.js': 1100 }
+		];
+
+		const { failure, readPatterns, octokit, logs } = await runAction({
+			sizes,
+			inputs: { pattern: 'packages/app/dist/**/*.js\n\npackages/lib/dist/**/*.js\n' }
+		});
+
+		expect(failure).toBeNull();
+		expect(readPatterns).toEqual([
+			'packages/app/dist/**/*.js',
+			'packages/lib/dist/**/*.js',
+			'packages/app/dist/**/*.js',
+			'packages/lib/dist/**/*.js'
+		]);
+
+		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
+		const appHeading = body.indexOf('### `packages/app/dist/**/*.js`');
+		const libHeading = body.indexOf('### `packages/lib/dist/**/*.js`');
+		expect(appHeading).toBe(0);
+		expect(libHeading).toBeGreaterThan(appHeading);
+		expect(body.slice(appHeading, libHeading)).toContain('**Size Change:** +2.5 kB (+100%) 🆘');
+		expect(body.slice(appHeading, libHeading)).toContain('| `packages/app/dist/index.js` | 5 kB | +2.5 kB (+100%) | 🆘 |');
+		expect(body.slice(libHeading)).toContain('**Size Change:** -100 B (-9.09%) ✅');
+		expect(body.slice(libHeading)).toContain('| `packages/lib/dist/index.js` | 1 kB | -100 B (-9.09%) | ✅ |');
+		expect(body).toMatch(FOOTER_REGEXP);
+
+		// The job log gets one group per pattern as well.
+		expect(logs).toContain(' packages/app/dist/index.js ⏤ 5 kB (+2.5 kB)\n');
+		expect(logs).toContain(' packages/lib/dist/index.js ⏤ 1 kB (-100 B)\n');
 	});
 
 	test('does not measure gzip separately for other compression modes', async () => {
