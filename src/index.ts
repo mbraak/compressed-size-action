@@ -74,12 +74,18 @@ async function run(
 
   if (getInput("cwd")) process.chdir(getInput("cwd"));
 
-  const plugin = new FileSizes({
-    compression: getInput("compression") as CompressionMethod,
+  const compression = getInput("compression") as CompressionMethod;
+  const fileOptions = {
     pattern: getInput("pattern") || "**/dist/**/*.{js,mjs,cjs}",
     exclude: getInput("exclude") || "{**/*.map,**/node_modules/**}",
     stripHash: stripHash(getInput("strip-hash")),
-  });
+  };
+  const fileSizes = new FileSizes({ compression, ...fileOptions });
+  // Uncompressed reports additionally show gzip sizes for the same files.
+  const gzipFileSizes =
+    compression === "none"
+      ? new FileSizes({ compression: "gzip", ...fileOptions })
+      : undefined;
 
   const buildScript = getInput("build-script") || "build";
   const cwd = process.cwd();
@@ -100,7 +106,8 @@ async function run(
   await exec(`${packageManager} run ${buildScript}`);
   endGroup();
 
-  const newSizes = await plugin.readFromDisk(cwd);
+  const newSizes = await fileSizes.readFromDisk(cwd);
+  const newGzipSizes = await gzipFileSizes?.readFromDisk(cwd);
 
   // In case the build step alters a JSON-file, ....
   await exec(`git reset --hard`);
@@ -165,22 +172,36 @@ async function run(
   // In case the build step alters a JSON-file, ....
   await exec(`git reset --hard`);
 
-  const oldSizes = await plugin.readFromDisk(cwd);
+  const oldSizes = await fileSizes.readFromDisk(cwd);
+  const oldGzipSizes = await gzipFileSizes?.readFromDisk(cwd);
 
-  const diff = plugin.getDiff(oldSizes, newSizes);
+  const diff = fileSizes.getDiff(oldSizes, newSizes);
+  const gzipDiff =
+    gzipFileSizes && oldGzipSizes && newGzipSizes
+      ? gzipFileSizes.getDiff(oldGzipSizes, newGzipSizes)
+      : undefined;
 
   startGroup(`Size Differences:`);
-  const cliText = plugin.printSizes(diff);
-  console.log(cliText);
+  console.log(fileSizes.printSizes(diff));
   endGroup();
 
-  const markdownDiff = diffTable(diff, {
-    collapseUnchanged: toBool(getInput("collapse-unchanged")),
-    omitUnchanged: toBool(getInput("omit-unchanged")),
-    showTotal: toBool(getInput("show-total")),
-    minimumChangeThreshold: parseInt(getInput("minimum-change-threshold"), 10),
-    sortBy: getSortOrder(getInput("sort-by")),
-  });
+  if (gzipFileSizes && gzipDiff) {
+    startGroup(`Size Differences (gzip):`);
+    console.log(gzipFileSizes.printSizes(gzipDiff));
+    endGroup();
+  }
+
+  const markdownDiff = diffTable(
+    diff,
+    {
+      collapseUnchanged: toBool(getInput("collapse-unchanged")),
+      omitUnchanged: toBool(getInput("omit-unchanged")),
+      showTotal: toBool(getInput("show-total")),
+      minimumChangeThreshold: parseInt(getInput("minimum-change-threshold"), 10),
+      sortBy: getSortOrder(getInput("sort-by")),
+    },
+    gzipDiff,
+  );
 
   let outputRawMarkdown = false;
 

@@ -24,9 +24,9 @@ function compressedResultAssertionHelper(result: Record<string, number>) {
 
 describe("methods", () => {
   test("Should support `.filterFiles`", async () => {
-    const plugin = new FileSizes({});
+    const fileSizes = new FileSizes({});
 
-    const filtered = await plugin.filterFiles([
+    const filtered = await fileSizes.filterFiles([
       "index.mjs",
       "index.js",
       "index.html",
@@ -43,17 +43,17 @@ describe("methods", () => {
   });
 
   test("Should support `.readFromDisk`", async () => {
-    const plugin = new FileSizes({});
+    const fileSizes = new FileSizes({});
 
-    const result = await plugin.readFromDisk(DATA_PATH);
+    const result = await fileSizes.readFromDisk(DATA_PATH);
 
     compressedResultAssertionHelper(result);
   });
 
   test("Should support `.getDiff`", async () => {
-    const plugin = new FileSizes({});
+    const fileSizes = new FileSizes({});
 
-    const diff = plugin.getDiff(
+    const diff = fileSizes.getDiff(
       {
         "index.mjs": 513,
         "index.js": 47,
@@ -86,9 +86,9 @@ describe("methods", () => {
   });
 
   test("should support `.printSize`", async () => {
-    const plugin = new FileSizes({});
+    const fileSizes = new FileSizes({});
 
-    const sizeText = plugin.printSizes([
+    const sizeText = fileSizes.printSizes([
       {
         filename: "index.mjs",
         size: 500,
@@ -136,11 +136,11 @@ describe("options", () => {
   });
 
   test("Should support `pattern`", async () => {
-    const plugin = new FileSizes({
+    const fileSizes = new FileSizes({
       pattern: "**/*.avif",
     });
 
-    const filtered = await plugin.filterFiles([
+    const filtered = await fileSizes.filterFiles([
       "index.mjs",
       "index.js",
       "index.html",
@@ -152,11 +152,11 @@ describe("options", () => {
   });
 
   test("Should support `exclude`", async () => {
-    const plugin = new FileSizes({
+    const fileSizes = new FileSizes({
       exclude: "**/*.{css,png}",
     });
 
-    const filtered = await plugin.filterFiles([
+    const filtered = await fileSizes.filterFiles([
       "index.mjs",
       "index.js",
       "index.html",
@@ -168,11 +168,11 @@ describe("options", () => {
   });
 
   test("Should support `stripHash`", async () => {
-    const plugin = new FileSizes({
+    const fileSizes = new FileSizes({
       stripHash: (filename) => filename.replace(/-(.{8})\.(css|mjs|js)/, ".$2"),
     });
 
-    const sizes = await plugin.getSizes({
+    const sizes = await fileSizes.getSizes({
       "index-12345678.mjs": "foo",
       "index-12345678.js": "bar",
       "index-12345678.html": "baz",

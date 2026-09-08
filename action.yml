@@ -21,7 +21,7 @@ inputs:
     description: 'The npm-script to run that builds your project'
     default: 'build'
   compression:
-    description: 'The compression algorithm to use: "gzip" or "brotli"'
+    description: 'The compression algorithm to use: "gzip", "brotli" or "none". With "none", uncompressed sizes are reported alongside gzip sizes.'
     default: 'gzip'
   show-total:
     description: 'Show total size and difference.'

@@ -213,6 +213,8 @@ By default, files are compared after gzip compression, but it's possible to use 
 compression: "none"
 ```
 
+When compression is set to `none`, the report shows the uncompressed size of each file and additionally includes a separate "View Changed (gzip)" table with the gzip size and change of the changed files, so both numbers are visible at a glance.
+
 ### Specifying the base ref
 
 Use the `base-ref` option to compare against a specific ref. Otherwise, the action compares against the PR's base branch.

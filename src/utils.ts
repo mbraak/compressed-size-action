@@ -108,44 +108,40 @@ export function iconForDifference(delta: number, originalSize: number): string {
 	return '';
 }
 
+interface Column {
+	header: string;
+	align: string;
+	/** Hide the column when every cell equals this value. */
+	hideIfAll?: string;
+}
+
 /**
- * Create a Markdown table from text rows
+ * Create a Markdown table from text rows, dropping columns that carry no information.
  */
-function markdownTable(rows: string[][]): string {
+function markdownTable(columns: Column[], rows: string[][]): string {
 	if (rows.length == 0) {
 		return '';
 	}
 
-	// Skip all empty columns
-	while (rows.every(columns => !columns[columns.length - 1])) {
-		for (const columns of rows) {
-			columns.pop();
+	columns = columns.slice();
+	rows = rows.map(row => row.slice());
+	for (let i = columns.length - 1; i >= 0; i--) {
+		const { hideIfAll } = columns[i];
+		if (hideIfAll !== undefined && rows.every(row => row[i] === hideIfAll)) {
+			columns.splice(i, 1);
+			for (const row of rows) row.splice(i, 1);
 		}
 	}
 
-	const [firstRow] = rows;
-	let columnLength = firstRow.length;
-
-	// Hide `Change` column if they are all `0 B`
-	if (columnLength === 3 && rows.every(columns => columns[2] === '0 B')) {
-		columnLength -= 1;
-		for (const columns of rows) {
-			columns.pop();
-		}
-	}
-
-	if (columnLength === 0) {
+	if (columns.length === 0) {
 		return '';
 	}
 
 	return [
-		// Header
-		['Filename', 'Size', 'Change', ''].slice(0, columnLength),
-		// Align
-		[':---', ':---:', ':---:', ':---:'].slice(0, columnLength),
-		// Body
+		columns.map(column => column.header),
+		columns.map(column => column.align),
 		...rows
-	].map(columns => `| ${columns.join(' | ')} |`).join('\n');
+	].map(cells => `| ${cells.join(' | ')} |`).join('\n');
 }
 
 export type DiffTableColumn = 'Filename' | 'Size' | 'Change';
@@ -166,68 +162,108 @@ const columnIndex: Record<DiffTableColumn, keyof Diff> = {
 	Change: 'delta'
 };
 
+const COLUMNS: Column[] = [
+	{ header: 'Filename', align: ':---' },
+	{ header: 'Size', align: ':---:' },
+	{ header: 'Change', align: ':---:', hideIfAll: '0 B' },
+	{ header: '', align: ':---:', hideIfAll: '' }
+];
+
+function sizeRow({ filename, size, delta }: Diff): string[] {
+	const originalSize = size - delta;
+	return [
+		`\`${filename}\``,
+		prettyBytes(size),
+		getDeltaText(delta, originalSize),
+		iconForDifference(delta, originalSize)
+	];
+}
+
+function detailsSection(title: string, rows: string[][], open: boolean): string {
+	return `<details${open ? ' open' : ''}><summary>${title}</summary>\n\n${markdownTable(COLUMNS, rows)}\n\n</details>`;
+}
+
 /**
- * Create a Markdown table showing diff data
+ * Create a Markdown table showing diff data.
+ *
+ * When a second diff measured with gzip is given, the changed files are listed
+ * again in a "View Changed (gzip)" table and the totals include gzip figures.
  */
 export function diffTable(
 	files: Diff[],
-	{ showTotal, collapseUnchanged, omitUnchanged, minimumChangeThreshold = 1, sortBy }: DiffTableOptions
+	{ showTotal, collapseUnchanged, omitUnchanged, minimumChangeThreshold = 1, sortBy }: DiffTableOptions,
+	gzipFiles?: Diff[]
 ): string {
 	const changedRows: string[][] = [];
 	const unChangedRows: string[][] = [];
+	const gzipChangedRows: string[][] = [];
 
 	const [sortByColumn, sortByDirection] = sortBy.split(':') as [DiffTableColumn, SortOrder];
 	const key = columnIndex[sortByColumn];
 
 	files.sort((a, b) => {
 		const [left, right] = sortByDirection === 'asc' ? [a, b] : [b, a];
-		return left[key].toString().localeCompare(right[key].toString(), undefined, { numeric: true });
+		return String(left[key]).localeCompare(String(right[key]), undefined, { numeric: true });
 	});
+
+	const gzipByFilename = new Map(gzipFiles?.map(file => [file.filename, file]));
 
 	let totalSize = 0;
 	let totalDelta = 0;
+	let totalGzipSize = 0;
+	let totalGzipDelta = 0;
 	for (const file of files) {
 		const { filename, size, delta } = file;
+		const gzip = gzipByFilename.get(filename);
 		totalSize += size;
+		totalGzipSize += gzip?.size ?? 0;
 
-		const originalSize = size - delta;
+		// A file counts as unchanged based on its primary size, so the gzip
+		// table lists exactly the files from the primary changed table.
 		const isUnchanged = Math.abs(delta) < minimumChangeThreshold;
 
-		if (!isUnchanged) totalDelta += delta;
+		if (!isUnchanged) {
+			totalDelta += delta;
+			totalGzipDelta += gzip?.delta ?? 0;
+		}
 
 		if (isUnchanged && omitUnchanged) continue;
 
-		const row = [
-			`\`${filename}\``,
-			prettyBytes(size),
-			getDeltaText(delta, originalSize),
-			iconForDifference(delta, originalSize)
-		];
 		if (isUnchanged && collapseUnchanged) {
-			unChangedRows.push(row);
+			unChangedRows.push(sizeRow(file));
 		} else {
-			changedRows.push(row);
+			changedRows.push(sizeRow(file));
+			if (gzip) gzipChangedRows.push(sizeRow(gzip));
 		}
 	}
 
 	let out = '';
 
 	if (changedRows.length !== 0) {
-		const outChanged = markdownTable(changedRows);
-		out = `<details open><summary>📦 <strong>View Changed</strong></summary>\n\n${outChanged}\n\n</details>`;
+		out = detailsSection('📦 <strong>View Changed</strong>', changedRows, true);
+	}
+
+	if (gzipChangedRows.length !== 0) {
+		out += `\n\n${detailsSection('📦 <strong>View Changed (gzip)</strong>', gzipChangedRows, true)}`;
 	}
 
 	if (unChangedRows.length !== 0) {
-		const outUnchanged = markdownTable(unChangedRows);
-		out += `\n\n<details><summary>ℹ️ <strong>View Unchanged</strong></summary>\n\n${outUnchanged}\n\n</details>\n\n`;
+		out += `\n\n${detailsSection('ℹ️ <strong>View Unchanged</strong>', unChangedRows, false)}\n\n`;
 	}
 
 	if (showTotal) {
 		const totalOriginalSize = totalSize - totalDelta;
 		const totalDeltaText = getDeltaText(totalDelta, totalOriginalSize);
 		const totalIcon = iconForDifference(totalDelta, totalOriginalSize);
-		out = `**Total Size:** ${prettyBytes(totalSize)}\n\n${out}`;
-		out = `**Size Change:** ${totalDeltaText} ${totalIcon}\n\n${out}`;
+		const lines = [`**Size Change:** ${totalDeltaText} ${totalIcon}`];
+		if (gzipFiles) {
+			lines.push(`**Gzip Change:** ${getDeltaText(totalGzipDelta, totalGzipSize - totalGzipDelta)}`);
+		}
+		lines.push(`**Total Size:** ${prettyBytes(totalSize)}`);
+		if (gzipFiles) {
+			lines.push(`**Total Gzip Size:** ${prettyBytes(totalGzipSize)}`);
+		}
+		out = `${lines.join('\n\n')}\n\n${out}`;
 	}
 
 	return out;
