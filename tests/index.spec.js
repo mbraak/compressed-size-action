@@ -327,12 +327,14 @@ describe('src/index.js', () => {
 
 	test('prints the raw markdown when both commenting and reviewing fail', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.createComment.mockRejectedValue(new Error('no'));
-		octokit.pulls.createReview.mockRejectedValue(new Error('no'));
+		octokit.issues.createComment.mockRejectedValue(new Error('Resource not accessible by integration'));
+		octokit.pulls.createReview.mockRejectedValue(new Error('Must have admin rights to Repository.'));
 
 		const { failure, logs } = await runAction({ octokit });
 
 		expect(failure).toBeNull();
+		expect(logs).toContain('Error creating comment: Resource not accessible by integration');
+		expect(logs).toContain('Error creating PR review: Must have admin rights to Repository.');
 		const raw = logs.find((l) => l.includes('unable to comment on your PR'));
 		expect(raw).toBeDefined();
 		expect(raw).toContain('**Size Change:**');

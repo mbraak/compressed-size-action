@@ -261,7 +261,7 @@ async function run(octokit, context, token) {
             body: comment.body,
           });
         } catch (e) {
-          console.log("Error creating PR review.");
+          console.log(`Error creating PR review: ${e.message}`);
           outputRawMarkdown = true;
         }
       }
