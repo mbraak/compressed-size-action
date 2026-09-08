@@ -23,5 +23,11 @@ jobs:
         uses: ./
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          pattern: index.js
+          # `npm run build` also compiles the TypeScript sources into lib/;
+          # the bundle and the compiled files each get their own table.
+          pattern: |
+            index.js
+            lib/**/*.js
+          # lib/ is untracked, so remove it before the base branch is built.
+          clean-script: clean
           compression: "none"

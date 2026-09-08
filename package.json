@@ -3,7 +3,9 @@
   "version": "2.10.0",
   "main": "index.js",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --minify --outfile=index.js",
+    "compile": "tsc -p tsconfig.build.json",
+    "build": "npm run compile && esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --minify --outfile=index.js",
+    "clean": "rm -rf lib",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
