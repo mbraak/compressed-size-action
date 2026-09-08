@@ -4,18 +4,18 @@ import { promises as fs, globSync } from "node:fs";
 import picomatch from "picomatch";
 import prettyBytes from "pretty-bytes";
 
-/** @import { PluginOptions } from './index.js'; */
-import { noop, compressContent } from "./util.js";
+import { noop, compressContent } from "./compression.js";
 
 /**
- * @param {object} options
- * @param {'gzip' | 'brotli' | 'none'} [options.compression] compression method to use, default: 'gzip'
- * @param {string} [options.pattern] minimatch pattern of files to track, default: '**\/*.{js,mjs,cjs,jsx,css,html}'
- * @param {string} [options.exclude] minimatch pattern of files NOT to track, default: null
- * @param {(filename: string) => string} [options.stripHash] custom function to remove/normalize hashed filenames for comparison, default: (filename) => filename
+ * @typedef {object} FileSizesOptions
+ * @property {'gzip' | 'brotli' | 'none'} [compression] compression method to use, default: 'gzip'
+ * @property {string} [pattern] minimatch pattern of files to track, default: '**\/*.{js,mjs,cjs,jsx,css,html}'
+ * @property {string | null} [exclude] minimatch pattern of files NOT to track, default: null
+ * @property {(filename: string) => string} [stripHash] custom function to remove/normalize hashed filenames for comparison, default: (filename) => filename
  */
-export class SizePlugin {
-  /** @param {PluginOptions} options */
+
+export class FileSizes {
+  /** @param {FileSizesOptions} options */
   constructor(options) {
     options.compression ??= "gzip";
     options.pattern ??= "**/*.{js,mjs,cjs,jsx,css,html}";

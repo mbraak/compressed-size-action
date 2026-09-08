@@ -1,6 +1,6 @@
 import zlib from "node:zlib";
 
-import { noop, compressContent } from "../../src/size-plugin/util.js";
+import { noop, compressContent } from "../src/compression.js";
 
 const REPETITIVE = "export const x = 1;\n".repeat(200);
 const UNICODE = "héllo wörld — 日本語 🎉";
