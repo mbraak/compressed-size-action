@@ -1,16 +1,14 @@
 import path from "node:path";
 
-import { FileSizes } from "../src/fileSizes.js";
+import { FileSizes } from "../src/fileSizes";
 
 const DATA_PATH = path.resolve(process.cwd(), "tests", "data");
 
 /**
  * Compression sizes are non-deterministic across platforms and Node versions,
  * best we can do is check for keys & that the values are numbers > 0
- *
- * @param {Record<string, number>} result
  */
-function compressedResultAssertionHelper(result) {
+function compressedResultAssertionHelper(result: Record<string, number>) {
   expect(Object.keys(result).sort()).toEqual([
     "index.cjs",
     "index.html",
@@ -47,9 +45,7 @@ describe("methods", () => {
   test("Should support `.readFromDisk`", async () => {
     const plugin = new FileSizes({});
 
-    const result = await plugin.readFromDisk(
-      DATA_PATH,
-    );
+    const result = await plugin.readFromDisk(DATA_PATH);
 
     compressedResultAssertionHelper(result);
   });

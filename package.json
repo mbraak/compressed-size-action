@@ -3,7 +3,8 @@
   "version": "2.10.0",
   "main": "index.js",
   "scripts": {
-    "build": "esbuild src/index.js --bundle --platform=node --target=node24 --format=cjs --minify --define:navigator={} --outfile=index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --minify --outfile=index.js",
+    "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
   "license": "MIT",
@@ -11,8 +12,11 @@
     "@actions/core": "^3",
     "@actions/exec": "^3",
     "@actions/github": "^9",
+    "@types/node": "^24.13.3",
+    "@types/picomatch": "^4.0.3",
     "esbuild": "^0.28.2",
     "pretty-bytes": "^7",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.0"
   },
   "prettier": {

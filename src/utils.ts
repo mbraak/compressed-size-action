@@ -3,11 +3,14 @@ import path from 'path';
 import { EOL } from 'os';
 import prettyBytes from 'pretty-bytes';
 
-/**
- * @param {string} cwd
- * @returns {Promise<{ packageManager: string, installScript: string }>}
- */
-export async function getPackageManagerAndInstallScript(cwd) {
+import type { Diff } from './fileSizes';
+
+export interface PackageManagerInfo {
+	packageManager: string;
+	installScript: string;
+}
+
+export async function getPackageManagerAndInstallScript(cwd: string): Promise<PackageManagerInfo> {
 	const [yarnLockExists, pnpmLockExists, bunLockBinaryExists, bunLockExists, packageLockExists, denoLockExists] = await Promise.all([
 		fileExists(path.resolve(cwd, 'yarn.lock')),
 		fileExists(path.resolve(cwd, 'pnpm-lock.yaml')),
@@ -40,30 +43,29 @@ export async function getPackageManagerAndInstallScript(cwd) {
 
 /**
  * Check if a given file exists and can be accessed.
- * @param {string} filename
  */
-export async function fileExists(filename) {
+export async function fileExists(filename: string): Promise<boolean> {
 	try {
 		await fs.promises.access(filename, fs.constants.F_OK);
 		return true;
-	} catch (e) {}
+	} catch {}
 	return false;
 }
 
 /**
- * Remove any matched hash patterns from a filename string.
- * @param {string=} regex
- * @returns {(((fileName: string) => string) | undefined)}
+ * Build a function that removes any matched hash patterns from a filename.
+ * Capture groups are replaced with asterisks; without groups the whole match is removed.
+ * Returns `undefined` when no pattern is given.
  */
-export function stripHash(regex) {
+export function stripHash(regex?: string): ((fileName: string) => string) | undefined {
 	if (regex) {
 		console.log(`Stripping hash from build chunks using '${regex}' pattern.`);
 		return function (fileName) {
-			return fileName.replace(new RegExp(regex), (str, ...hashes) => {
-				hashes = hashes.slice(0, -2).filter((c) => c != null);
+			return fileName.replace(new RegExp(regex), (str, ...args: unknown[]) => {
+				// The last two replacer arguments are the match offset and the whole string.
+				const hashes = args.slice(0, -2).filter((c): c is string => c != null);
 				if (hashes.length) {
-					for (let i = 0; i < hashes.length; i++) {
-						const hash = hashes[i] || '';
+					for (const hash of hashes) {
 						str = str.replace(hash, hash.replace(/./g, '*'));
 					}
 					return str;
@@ -76,11 +78,7 @@ export function stripHash(regex) {
 	return undefined;
 }
 
-/**
- * @param {number} delta
- * @param {number} originalSize
- */
-export function getDeltaText(delta, originalSize) {
+export function getDeltaText(delta: number, originalSize: number): string {
 	let deltaText = (delta > 0 ? '+' : '') + prettyBytes(delta);
 	if (Math.abs(delta) === 0) {
 		// only print size
@@ -95,11 +93,7 @@ export function getDeltaText(delta, originalSize) {
 	return deltaText;
 }
 
-/**
- * @param {number} delta
- * @param {number} originalSize
- */
-export function iconForDifference(delta, originalSize) {
+export function iconForDifference(delta: number, originalSize: number): string {
 	if (originalSize === 0) return '🆕';
 
 	const percentage = Math.round((delta / originalSize) * 100);
@@ -116,9 +110,8 @@ export function iconForDifference(delta, originalSize) {
 
 /**
  * Create a Markdown table from text rows
- * @param {string[][]} rows
  */
-function markdownTable(rows) {
+function markdownTable(rows: string[][]): string {
 	if (rows.length == 0) {
 		return '';
 	}
@@ -155,47 +148,40 @@ function markdownTable(rows) {
 	].map(columns => `| ${columns.join(' | ')} |`).join('\n');
 }
 
-/**
- * @typedef {Object} Diff
- * @property {string} filename
- * @property {number} size
- * @property {number} delta
- */
+export type DiffTableColumn = 'Filename' | 'Size' | 'Change';
+export type SortOrder = 'asc' | 'desc';
+export type SortBy = `${DiffTableColumn}:${SortOrder}`;
 
-/**
- * @typedef {'Filename' | 'Size' | 'Change'} DiffTableColumn
- * @typedef {'asc' | 'desc'} SortOrder
- * @typedef {`${DiffTableColumn}:${SortOrder}`} SortBy
- */
+export interface DiffTableOptions {
+	showTotal?: boolean;
+	collapseUnchanged?: boolean;
+	omitUnchanged?: boolean;
+	minimumChangeThreshold?: number;
+	sortBy: SortBy;
+}
+
+const columnIndex: Record<DiffTableColumn, keyof Diff> = {
+	Filename: 'filename',
+	Size: 'size',
+	Change: 'delta'
+};
 
 /**
  * Create a Markdown table showing diff data
- * @param {Diff[]} files
- * @param {object} options
- * @param {boolean} [options.showTotal]
- * @param {boolean} [options.collapseUnchanged]
- * @param {boolean} [options.omitUnchanged]
- * @param {number} [options.minimumChangeThreshold]
- * @param {SortBy} [options.sortBy]
- * @returns {string}
  */
-export function diffTable(files, { showTotal, collapseUnchanged, omitUnchanged, minimumChangeThreshold, sortBy }) {
-	const changedRows = [],
-		unChangedRows = [];
+export function diffTable(
+	files: Diff[],
+	{ showTotal, collapseUnchanged, omitUnchanged, minimumChangeThreshold = 1, sortBy }: DiffTableOptions
+): string {
+	const changedRows: string[][] = [];
+	const unChangedRows: string[][] = [];
 
-	const [sortByColumn, sortByDirection] = /** @type {[DiffTableColumn, SortOrder]} */ (sortBy.split(':'));
-
-	const columnIndex = {
-		Filename: 'filename',
-		Size: 'size',
-		Change: 'delta'
-	};
+	const [sortByColumn, sortByDirection] = sortBy.split(':') as [DiffTableColumn, SortOrder];
+	const key = columnIndex[sortByColumn];
 
 	files.sort((a, b) => {
-		const idx = columnIndex[sortByColumn];
-		return sortByDirection === 'asc'
-			? a[idx].toString().localeCompare(b[idx].toString(), undefined, { numeric: true })
-			: b[idx].toString().localeCompare(a[idx].toString(), undefined, { numeric: true });
+		const [left, right] = sortByDirection === 'asc' ? [a, b] : [b, a];
+		return left[key].toString().localeCompare(right[key].toString(), undefined, { numeric: true });
 	});
 
 	let totalSize = 0;
@@ -225,7 +211,7 @@ export function diffTable(files, { showTotal, collapseUnchanged, omitUnchanged, 
 	}
 
 	let out = '';
-	
+
 	if (changedRows.length !== 0) {
 		const outChanged = markdownTable(changedRows);
 		out = `<details open><summary>📦 <strong>View Changed</strong></summary>\n\n${outChanged}\n\n</details>`;
@@ -238,8 +224,8 @@ export function diffTable(files, { showTotal, collapseUnchanged, omitUnchanged, 
 
 	if (showTotal) {
 		const totalOriginalSize = totalSize - totalDelta;
-		let totalDeltaText = getDeltaText(totalDelta, totalOriginalSize);
-		let totalIcon = iconForDifference(totalDelta, totalOriginalSize);
+		const totalDeltaText = getDeltaText(totalDelta, totalOriginalSize);
+		const totalIcon = iconForDifference(totalDelta, totalOriginalSize);
 		out = `**Total Size:** ${prettyBytes(totalSize)}\n\n${out}`;
 		out = `**Size Change:** ${totalDeltaText} ${totalIcon}\n\n${out}`;
 	}
@@ -249,34 +235,24 @@ export function diffTable(files, { showTotal, collapseUnchanged, omitUnchanged, 
 
 /**
  * Convert a string "true"/"yes"/"1" argument value to a boolean
- * @param {string} v
  */
-export function toBool(v) {
+export function toBool(v: string): boolean {
 	return /^(1|true|yes)$/.test(v);
 }
 
-/**
- * @param {string} sortBy
- * @returns {SortBy}
- */
-export function getSortOrder(sortBy) {
+export function getSortOrder(sortBy: string): SortBy {
 	const validColumns = ['Filename', 'Size', 'Change'];
 	const validDirections = ['asc', 'desc'];
 
 	const [column, direction] = sortBy.split(':');
 	if (validColumns.includes(column) && validDirections.includes(direction)) {
-		return /** @type {SortBy} */ (sortBy);
+		return sortBy as SortBy;
 	}
 	console.warn(`Invalid 'order-by' value '${sortBy}', defaulting to 'Filename:asc'`);
 	return 'Filename:asc';
 }
 
-/**
- * 
- * @param {string} name
- * @param {string} value
- */
-export function setOutput(name, value) {
+export function setOutput(name: string, value: string): void {
 	const outputPath = process.env.GITHUB_OUTPUT;
 
 	if (outputPath) {
@@ -288,4 +264,11 @@ export function setOutput(name, value) {
 	console.log(
 		`::set-output name=${name}::${String(value).replace(/\n/g, '%0A').replace(/\r/g, '%0D')}`
 	);
+}
+
+/**
+ * Extract a human readable message from a thrown value.
+ */
+export function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }

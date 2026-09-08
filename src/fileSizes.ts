@@ -4,32 +4,41 @@ import { promises as fs, globSync } from "node:fs";
 import picomatch from "picomatch";
 import prettyBytes from "pretty-bytes";
 
-import { noop, compressContent } from "./compression.js";
+import { noop, compressContent, type CompressionMethod } from "./compression";
 
-/**
- * @typedef {object} FileSizesOptions
- * @property {'gzip' | 'brotli' | 'none'} [compression] compression method to use, default: 'gzip'
- * @property {string} [pattern] minimatch pattern of files to track, default: '**\/*.{js,mjs,cjs,jsx,css,html}'
- * @property {string | null} [exclude] minimatch pattern of files NOT to track, default: null
- * @property {(filename: string) => string} [stripHash] custom function to remove/normalize hashed filenames for comparison, default: (filename) => filename
- */
+export interface FileSizesOptions {
+  /** Compression method to use, default: 'gzip' */
+  compression?: CompressionMethod;
+  /** minimatch pattern of files to track, default: '**\/*.{js,mjs,cjs,jsx,css,html}' */
+  pattern?: string;
+  /** minimatch pattern of files NOT to track, default: null */
+  exclude?: string | null;
+  /** Custom function to remove/normalize hashed filenames for comparison, default: identity */
+  stripHash?: (filename: string) => string;
+}
+
+/** Compressed size of each tracked file, keyed by (hash-stripped) filename. */
+export type FileSizeMap = Record<string, number>;
+
+export interface Diff {
+  filename: string;
+  size: number;
+  delta: number;
+}
 
 export class FileSizes {
-  /** @param {FileSizesOptions} options */
-  constructor(options) {
-    options.compression ??= "gzip";
-    options.pattern ??= "**/*.{js,mjs,cjs,jsx,css,html}";
-    options.exclude ??= null;
-    options.stripHash ??= noop;
+  readonly options: Required<FileSizesOptions>;
 
-    this.options = options;
+  constructor(options: FileSizesOptions = {}) {
+    this.options = {
+      compression: options.compression ?? "gzip",
+      pattern: options.pattern ?? "**/*.{js,mjs,cjs,jsx,css,html}",
+      exclude: options.exclude ?? null,
+      stripHash: options.stripHash ?? noop,
+    };
   }
 
-  /**
-   * @param {string[]} files
-   * @return {string[]}
-   */
-  filterFiles = (files) => {
+  filterFiles = (files: string[]): string[] => {
     const isMatched = picomatch(this.options.pattern);
     const isExcluded = this.options.exclude
       ? picomatch(this.options.exclude)
@@ -37,18 +46,13 @@ export class FileSizes {
     return files.filter((file) => isMatched(file) && !isExcluded(file));
   };
 
-  /**
-   * @param {string} cwd
-   * @returns {Promise<Record<string, number>>}
-   */
-  readFromDisk = async (cwd) => {
+  readFromDisk = async (cwd: string): Promise<FileSizeMap> => {
     const files = globSync(this.options.pattern, {
       cwd,
       exclude: this.options.exclude ? [this.options.exclude] : undefined,
     });
 
-    /** @type {Record<string, number>} */
-    const result = {};
+    const result: FileSizeMap = {};
     await Promise.all(
       files.map(async (file) => {
         try {
@@ -65,15 +69,10 @@ export class FileSizes {
     return result;
   };
 
-  /**
-   * @param {Record<string, string>} assets
-   * @return {Promise<Record<string, number>>}
-   */
-  getSizes = async (assets) => {
+  getSizes = async (assets: Record<string, string>): Promise<FileSizeMap> => {
     const files = this.filterFiles(Object.keys(assets));
 
-    /** @type {Record<string, number>} */
-    const result = {};
+    const result: FileSizeMap = {};
     await Promise.all(
       files.map(async (file) => {
         try {
@@ -89,19 +88,13 @@ export class FileSizes {
     return result;
   };
 
-  /**
-   * @param {Record<string, number>} oldSizes
-   * @param {Record<string, number>} newSizes
-   * @return {{filename: string, size: number, delta: number}[]}
-   */
-  getDiff = (oldSizes, newSizes) => {
+  getDiff = (oldSizes: FileSizeMap, newSizes: FileSizeMap): Diff[] => {
     const filenames = new Set([
       ...Object.keys(oldSizes),
       ...Object.keys(newSizes),
     ]);
 
-    /** @type {{filename: string, size: number, delta: number}[]} */
-    const result = [];
+    const result: Diff[] = [];
     for (const filename of filenames) {
       const size = newSizes[filename] || 0;
       const sizeBefore = oldSizes[filename] || 0;
@@ -112,11 +105,7 @@ export class FileSizes {
     return result;
   };
 
-  /**
-   * @param {{filename: string, size: number, delta: number}[]} files
-   * @return {string}
-   */
-  printSizes = (files) => {
+  printSizes = (files: Diff[]): string => {
     const width = Math.max(...files.map((file) => file.filename.length), 0);
 
     let output = "";
@@ -126,16 +115,9 @@ export class FileSizes {
       const msg = " ".repeat(width - filename.length + 1) + filename + " ⏤ ";
 
       let sizeText = prettyBytes(size);
-      let deltaText = "";
 
       if (delta && Math.abs(delta) > 1) {
-        deltaText = (delta > 0 ? "+" : "") + prettyBytes(delta);
-        if (delta > 1024) {
-          sizeText = sizeText;
-          deltaText = deltaText;
-        } else if (delta < -10) {
-          deltaText = deltaText;
-        }
+        const deltaText = (delta > 0 ? "+" : "") + prettyBytes(delta);
         sizeText += ` (${deltaText})`;
       }
 

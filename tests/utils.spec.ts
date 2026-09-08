@@ -1,5 +1,5 @@
 import path from 'path';
-import { toBool, getDeltaText, iconForDifference, diffTable, getPackageManagerAndInstallScript, fileExists, stripHash } from '../src/utils.js';
+import { toBool, getDeltaText, iconForDifference, diffTable, getPackageManagerAndInstallScript, fileExists, stripHash, errorMessage } from '../src/utils';
 
 test('toBool', () => {
 	expect(toBool('1')).toBe(true);
@@ -59,7 +59,7 @@ test('diffTable', () => {
 		collapseUnchanged: true,
 		omitUnchanged: false,
 		minimumChangeThreshold: 1,
-		sortBy: /** @type {const} */ ('Filename:asc')
+		sortBy: 'Filename:asc' as const
 	};
 
 	expect(diffTable(files, { ...defaultOptions })).toMatchSnapshot();
@@ -94,7 +94,15 @@ test('fileExists', async () => {
 });
 
 test('stripHash', () => {
-	expect(stripHash('\\b\\w{5}\\.')('foo.abcde.js')).toBe('foo.js');
-	expect(stripHash('\\.(\\w{5})\\.chunk\\.js$')('foo.abcde.chunk.js')).toBe('foo.*****.chunk.js');
+	expect(stripHash('\\b\\w{5}\\.')!('foo.abcde.js')).toBe('foo.js');
+	expect(stripHash('\\.(\\w{5})\\.chunk\\.js$')!('foo.abcde.chunk.js')).toBe('foo.*****.chunk.js');
 	expect(stripHash('')).toBe(undefined);
+});
+
+test('errorMessage', () => {
+	expect(errorMessage(new Error('boom'))).toBe('boom');
+	expect(errorMessage(new TypeError('bad type'))).toBe('bad type');
+	expect(errorMessage('plain string')).toBe('plain string');
+	expect(errorMessage(42)).toBe('42');
+	expect(errorMessage(undefined)).toBe('undefined');
 });

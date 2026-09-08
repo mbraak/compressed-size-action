@@ -1,28 +1,30 @@
 /**
- * Tests for the action entry point (src/index.js).
+ * Tests for the action entry point (src/index.ts).
  *
  * The module runs its `run()` function on import, so every test resets the
  * module registry, configures the mocked inputs/context, imports the module
  * fresh and waits for it to either log "All done!" or call `setFailed`.
  */
 
+import type { FileSizeMap } from '../src/fileSizes';
+
+type MockOctokit = ReturnType<typeof makeOctokit>;
+
 const mocks = vi.hoisted(() => ({
-	/** @type {Record<string, string>} */
-	inputs: {},
-	/** @type {Record<string, any>} */
-	context: {},
+	inputs: {} as Record<string, string>,
+	context: {} as Record<string, any>,
 	/** Sizes returned by successive `readFromDisk` calls: first the PR build, then the base build. */
-	sizes: /** @type {Record<string, number>[]} */ ([]),
+	sizes: [] as FileSizeMap[],
 	/** Commands that should throw when passed to `exec`. */
-	execFailures: /** @type {Record<string, Error>} */ ({}),
-	execCalls: /** @type {string[]} */ ([]),
-	state: { done: false, failure: /** @type {string | null} */ (null) },
-	octokit: /** @type {any} */ (null)
+	execFailures: {} as Record<string, Error>,
+	execCalls: [] as string[],
+	state: { done: false, failure: null as string | null },
+	octokit: null as MockOctokit | null
 }));
 
 vi.mock('@actions/core', () => ({
-	getInput: vi.fn((name) => mocks.inputs[name] ?? ''),
-	setFailed: vi.fn((message) => {
+	getInput: vi.fn((name: string) => mocks.inputs[name] ?? ''),
+	setFailed: vi.fn((message: string) => {
 		mocks.state.failure = message;
 		mocks.state.done = true;
 	}),
@@ -37,7 +39,7 @@ vi.mock('@actions/github', () => ({
 }));
 
 vi.mock('@actions/exec', () => ({
-	exec: vi.fn(async (command) => {
+	exec: vi.fn(async (command: string) => {
 		mocks.execCalls.push(command);
 		const failure = mocks.execFailures[command];
 		if (failure) throw failure;
@@ -45,13 +47,12 @@ vi.mock('@actions/exec', () => ({
 	})
 }));
 
-vi.mock('../src/fileSizes.js', async (importOriginal) => {
-	const actual = /** @type {any} */ (await importOriginal());
+vi.mock('../src/fileSizes', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../src/fileSizes')>();
 	class FileSizes extends actual.FileSizes {
-		readFromDisk = async () => {
+		override readFromDisk = async (): Promise<FileSizeMap> => {
 			const sizes = mocks.sizes.shift() ?? {};
-			/** @type {Record<string, number>} */
-			const result = {};
+			const result: FileSizeMap = {};
 			for (const [file, size] of Object.entries(sizes)) {
 				result[this.options.stripHash(file)] = size;
 			}
@@ -80,20 +81,30 @@ const FOOTER_REGEXP = /<a href="https:\/\/github\.com\/preactjs\/compressed-size
  * Mirrors the shape of the client returned by `getOctokit` in @actions/github v5+,
  * where REST endpoint methods live under the `rest` namespace.
  */
+interface ExistingComment {
+	id: number;
+	body: string;
+}
+
+interface CommentBody {
+	body: string;
+	[key: string]: unknown;
+}
+
 function makeOctokit() {
 	return {
 		rest: {
 			issues: {
-				listComments: vi.fn(async () => ({ data: [] })),
-				updateComment: vi.fn(async () => ({})),
-				createComment: vi.fn(async () => ({}))
+				listComments: vi.fn(async (_params: unknown): Promise<{ data: ExistingComment[] }> => ({ data: [] })),
+				updateComment: vi.fn(async (_params: CommentBody & { comment_id: number }) => ({})),
+				createComment: vi.fn(async (_params: CommentBody) => ({}))
 			},
 			pulls: {
-				createReview: vi.fn(async () => ({}))
+				createReview: vi.fn(async (_params: CommentBody) => ({}))
 			},
 			checks: {
-				create: vi.fn(async () => ({ data: { id: 42 } })),
-				update: vi.fn(async () => ({}))
+				create: vi.fn(async (_params: unknown) => ({ data: { id: 42 } })),
+				update: vi.fn(async (_params: Record<string, unknown>) => ({}))
 			}
 		}
 	};
@@ -101,7 +112,7 @@ function makeOctokit() {
 
 const REPO = { owner: 'preactjs', repo: 'compressed-size-action' };
 
-function pullRequestContext(overrides = {}) {
+function pullRequestContext(overrides: Record<string, unknown> = {}) {
 	return {
 		eventName: 'pull_request',
 		repo: REPO,
@@ -126,12 +137,11 @@ function pushContext() {
 	};
 }
 
-/** @type {string[]} */
-let logs;
+let logs: string[];
 
 beforeEach(() => {
 	logs = [];
-	vi.spyOn(console, 'log').mockImplementation((...args) => {
+	vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
 		const line = args.map(String).join(' ');
 		logs.push(line);
 		if (line === 'All done!') mocks.state.done = true;
@@ -144,21 +154,21 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-/**
- * @param {object} options
- * @param {Record<string, string>} [options.inputs]
- * @param {Record<string, any>} [options.context]
- * @param {Record<string, number>[]} [options.sizes]
- * @param {Record<string, Error>} [options.execFailures]
- * @param {ReturnType<typeof makeOctokit>} [options.octokit]
- */
+interface RunOptions {
+	inputs?: Record<string, string>;
+	context?: Record<string, any>;
+	sizes?: FileSizeMap[];
+	execFailures?: Record<string, Error>;
+	octokit?: MockOctokit;
+}
+
 async function runAction({
 	inputs = {},
 	context = pullRequestContext(),
 	sizes = [NEW_SIZES, OLD_SIZES],
 	execFailures = {},
 	octokit = makeOctokit()
-} = {}) {
+}: RunOptions = {}) {
 	for (const key of Object.keys(mocks.inputs)) delete mocks.inputs[key];
 	Object.assign(mocks.inputs, DEFAULT_INPUTS, inputs);
 
@@ -177,7 +187,7 @@ async function runAction({
 	mocks.octokit = octokit;
 
 	vi.resetModules();
-	await import('../src/index.js');
+	await import('../src/index');
 	await vi.waitFor(() => {
 		if (!mocks.state.done) throw new Error('action has not finished yet');
 	});
@@ -185,7 +195,7 @@ async function runAction({
 	return { failure: mocks.state.failure, execCalls: [...mocks.execCalls], octokit, logs };
 }
 
-describe('src/index.js', () => {
+describe('src/index.ts', () => {
 	test('builds both branches and posts a new PR comment', async () => {
 		const { failure, execCalls, octokit } = await runAction();
 
@@ -529,7 +539,7 @@ describe('src/index.js', () => {
 	});
 
 	test('strips hashes from filenames before comparing', async () => {
-		const sizes = [{ 'dist/index.abcde.js': 1200 }, { 'dist/index.fghij.js': 1000 }];
+		const sizes: FileSizeMap[] = [{ 'dist/index.abcde.js': 1200 }, { 'dist/index.fghij.js': 1000 }];
 
 		const { octokit } = await runAction({
 			sizes,
