@@ -1,5 +1,43 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`diffReport 1`] = `
+"### \`app/**/*.js\`
+
+**Size Change:** +2.5 kB (+89.29%) 🆘
+
+**Total Size:** 5.3 kB
+
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
+
+| Filename | Size | Change |  |
+| :--- | :---: | :---: | :---: |
+| \`app/index.js\` | 5 kB | +2.5 kB (+100%) | 🆘 |
+
+</details>
+
+<details><summary>ℹ️ <strong>View Unchanged</strong></summary>
+
+| Filename | Size |
+| :--- | :---: |
+| \`app/vendor.js\` | 300 B |
+
+</details>
+
+### \`lib/**/*.js\`
+
+**Size Change:** -100 B (-9.09%) ✅
+
+**Total Size:** 1 kB
+
+<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
+
+| Filename | Size | Change |  |
+| :--- | :---: | :---: | :---: |
+| \`lib/index.js\` | 1 kB | -100 B (-9.09%) | ✅ |
+
+</details>"
+`;
+
 exports[`diffTable 1`] = `
 "**Size Change:** +9 B (+0.04%) 
 

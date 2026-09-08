@@ -166,7 +166,18 @@ jobs:
 +       exclude: "{./build-output/manifest.json,**/*.map,**/node_modules/**}"
 ```
 
-Files are collected by finding matches for `pattern`, then any of those that match `exclude` are ignored. For that reason, most projects don't need to modify `exclude`. The default values for `pattern` and `exclude` are as follows:
+Files are collected by finding matches for `pattern`, then any of those that match `exclude` are ignored. For that reason, most projects don't need to modify `exclude`.
+
+Several patterns can be given on separate lines. Each pattern is reported in its own table, headed by the pattern, which is handy for monorepos or for keeping different kinds of output apart:
+
+```yaml
+with:
+  pattern: |
+    packages/app/dist/**/*.js
+    packages/lib/dist/**/*.js
+```
+
+The default values for `pattern` and `exclude` are as follows:
 
 ```yaml
 with:
