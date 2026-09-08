@@ -76,19 +76,25 @@ const OLD_SIZES = { 'dist/index.js': 1000, 'dist/removed.js': 200 };
 
 const FOOTER_REGEXP = /<a href="https:\/\/github\.com\/preactjs\/compressed-size-action"><sub>compressed-size-action(::[^<]+)?<\/sub><\/a>$/;
 
+/**
+ * Mirrors the shape of the client returned by `getOctokit` in @actions/github v5+,
+ * where REST endpoint methods live under the `rest` namespace.
+ */
 function makeOctokit() {
 	return {
-		issues: {
-			listComments: vi.fn(async () => ({ data: [] })),
-			updateComment: vi.fn(async () => ({})),
-			createComment: vi.fn(async () => ({}))
-		},
-		pulls: {
-			createReview: vi.fn(async () => ({}))
-		},
-		checks: {
-			create: vi.fn(async () => ({ data: { id: 42 } })),
-			update: vi.fn(async () => ({}))
+		rest: {
+			issues: {
+				listComments: vi.fn(async () => ({ data: [] })),
+				updateComment: vi.fn(async () => ({})),
+				createComment: vi.fn(async () => ({}))
+			},
+			pulls: {
+				createReview: vi.fn(async () => ({}))
+			},
+			checks: {
+				create: vi.fn(async () => ({ data: { id: 42 } })),
+				update: vi.fn(async () => ({}))
+			}
 		}
 	};
 }
@@ -195,11 +201,11 @@ describe('src/index.js', () => {
 			'git reset --hard'
 		]);
 
-		expect(octokit.issues.listComments).toHaveBeenCalledWith({ ...REPO, issue_number: 123 });
-		expect(octokit.issues.updateComment).not.toHaveBeenCalled();
-		expect(octokit.issues.createComment).toHaveBeenCalledTimes(1);
+		expect(octokit.rest.issues.listComments).toHaveBeenCalledWith({ ...REPO, issue_number: 123 });
+		expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
 
-		const { body, ...target } = octokit.issues.createComment.mock.calls[0][0];
+		const { body, ...target } = octokit.rest.issues.createComment.mock.calls[0][0];
 		expect(target).toEqual({ ...REPO, issue_number: 123 });
 		expect(body).toMatch(FOOTER_REGEXP);
 		expect(body).toContain('**Size Change:** +400 B (+33.33%) 🚨');
@@ -213,14 +219,14 @@ describe('src/index.js', () => {
 	test('writes the comment body to the comment-body output', async () => {
 		const { logs, octokit } = await runAction();
 
-		const body = octokit.issues.createComment.mock.calls[0][0].body;
+		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
 		const expected = `::set-output name=comment-body::${body.replace(/\n/g, '%0A')}`;
 		expect(logs).toContain(expected);
 	});
 
 	test('updates an existing comment from a previous run', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.listComments.mockResolvedValue({
+		octokit.rest.issues.listComments.mockResolvedValue({
 			data: [
 				{ id: 1, body: 'Unrelated comment' },
 				{ id: 2, body: 'Old report\n\n<a href="..."><sub>compressed-size-action</sub></a>' },
@@ -231,9 +237,9 @@ describe('src/index.js', () => {
 		const result = await runAction({ octokit });
 
 		expect(result.failure).toBeNull();
-		expect(octokit.issues.createComment).not.toHaveBeenCalled();
-		expect(octokit.issues.updateComment).toHaveBeenCalledTimes(1);
-		expect(octokit.issues.updateComment).toHaveBeenCalledWith({
+		expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+		expect(octokit.rest.issues.updateComment).toHaveBeenCalledTimes(1);
+		expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith({
 			...REPO,
 			comment_id: 2,
 			body: expect.stringMatching(FOOTER_REGEXP)
@@ -242,34 +248,34 @@ describe('src/index.js', () => {
 
 	test('recognises comments from the legacy gzip-size-action footer', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.listComments.mockResolvedValue({
+		octokit.rest.issues.listComments.mockResolvedValue({
 			data: [{ id: 7, body: '<sub>gzip-size-action</sub>' }]
 		});
 
 		await runAction({ octokit });
 
-		expect(octokit.issues.updateComment).toHaveBeenCalledWith(
+		expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(
 			expect.objectContaining({ comment_id: 7 })
 		);
 	});
 
 	test('matches a previous comment with whitespace inside the footer', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.listComments.mockResolvedValue({
+		octokit.rest.issues.listComments.mockResolvedValue({
 			data: [{ id: 9, body: 'Report\n\n<a href="..."><sub>\n  compressed-size-action</sub></a>' }]
 		});
 
 		await runAction({ octokit });
 
-		expect(octokit.issues.createComment).not.toHaveBeenCalled();
-		expect(octokit.issues.updateComment).toHaveBeenCalledWith(
+		expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+		expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(
 			expect.objectContaining({ comment_id: 9 })
 		);
 	});
 
 	test('scopes the footer and comment lookup by comment-key', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.listComments.mockResolvedValue({
+		octokit.rest.issues.listComments.mockResolvedValue({
 			data: [
 				{ id: 2, body: '<sub>compressed-size-action</sub>' },
 				{ id: 3, body: '<sub>compressed-size-action::client</sub>' }
@@ -278,45 +284,45 @@ describe('src/index.js', () => {
 
 		await runAction({ octokit, inputs: { 'comment-key': 'client' } });
 
-		expect(octokit.issues.updateComment).toHaveBeenCalledTimes(1);
-		const { comment_id, body } = octokit.issues.updateComment.mock.calls[0][0];
+		expect(octokit.rest.issues.updateComment).toHaveBeenCalledTimes(1);
+		const { comment_id, body } = octokit.rest.issues.updateComment.mock.calls[0][0];
 		expect(comment_id).toBe(3);
 		expect(body).toMatch(/<sub>compressed-size-action::client<\/sub><\/a>$/);
 	});
 
 	test('creates a new comment when editing the previous one fails', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.listComments.mockResolvedValue({
+		octokit.rest.issues.listComments.mockResolvedValue({
 			data: [{ id: 2, body: '<sub>compressed-size-action</sub>' }]
 		});
-		octokit.issues.updateComment.mockRejectedValue(new Error('nope'));
+		octokit.rest.issues.updateComment.mockRejectedValue(new Error('nope'));
 
 		const { failure, logs } = await runAction({ octokit });
 
 		expect(failure).toBeNull();
 		expect(logs).toContain('Error editing previous comment: nope');
-		expect(octokit.issues.createComment).toHaveBeenCalledTimes(1);
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
 	});
 
 	test('still succeeds when listing comments fails', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.listComments.mockRejectedValue(new Error('forbidden'));
+		octokit.rest.issues.listComments.mockRejectedValue(new Error('forbidden'));
 
 		const { failure, logs } = await runAction({ octokit });
 
 		expect(failure).toBeNull();
 		expect(logs).toContain('Error checking for previous comments: forbidden');
-		expect(octokit.issues.createComment).toHaveBeenCalledTimes(1);
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
 	});
 
 	test('falls back to a PR review when commenting fails', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.createComment.mockRejectedValue(new Error('Resource not accessible'));
+		octokit.rest.issues.createComment.mockRejectedValue(new Error('Resource not accessible'));
 
 		const { failure, logs } = await runAction({ octokit });
 
 		expect(failure).toBeNull();
-		expect(octokit.pulls.createReview).toHaveBeenCalledWith({
+		expect(octokit.rest.pulls.createReview).toHaveBeenCalledWith({
 			...REPO,
 			pull_number: 123,
 			event: 'COMMENT',
@@ -327,8 +333,8 @@ describe('src/index.js', () => {
 
 	test('prints the raw markdown when both commenting and reviewing fail', async () => {
 		const octokit = makeOctokit();
-		octokit.issues.createComment.mockRejectedValue(new Error('Resource not accessible by integration'));
-		octokit.pulls.createReview.mockRejectedValue(new Error('Must have admin rights to Repository.'));
+		octokit.rest.issues.createComment.mockRejectedValue(new Error('Resource not accessible by integration'));
+		octokit.rest.pulls.createReview.mockRejectedValue(new Error('Must have admin rights to Repository.'));
 
 		const { failure, logs } = await runAction({ octokit });
 
@@ -347,20 +353,20 @@ describe('src/index.js', () => {
 		});
 
 		expect(failure).toBeNull();
-		expect(octokit.issues.createComment).toHaveBeenCalledTimes(1);
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
 	});
 
 	test('reports through a check run when use-check is enabled', async () => {
 		const { failure, octokit } = await runAction({ inputs: { 'use-check': 'true' } });
 
 		expect(failure).toBeNull();
-		expect(octokit.checks.create).toHaveBeenCalledWith({
+		expect(octokit.rest.checks.create).toHaveBeenCalledWith({
 			...REPO,
 			name: 'Compressed Size',
 			head_sha: 'head-sha',
 			status: 'in_progress'
 		});
-		expect(octokit.checks.update).toHaveBeenCalledWith(
+		expect(octokit.rest.checks.update).toHaveBeenCalledWith(
 			expect.objectContaining({
 				...REPO,
 				check_run_id: 42,
@@ -372,8 +378,8 @@ describe('src/index.js', () => {
 				}
 			})
 		);
-		expect(octokit.checks.update.mock.calls[0][0].completed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-		expect(octokit.issues.createComment).not.toHaveBeenCalled();
+		expect(octokit.rest.checks.update.mock.calls[0][0].completed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+		expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
 	});
 
 	test('prints raw markdown when use-check is enabled without a token', async () => {
@@ -382,7 +388,7 @@ describe('src/index.js', () => {
 		});
 
 		expect(failure).toBeNull();
-		expect(octokit.checks.create).not.toHaveBeenCalled();
+		expect(octokit.rest.checks.create).not.toHaveBeenCalled();
 		expect(logs.some((l) => l.includes('unable to comment on your PR'))).toBe(true);
 	});
 
@@ -394,9 +400,9 @@ describe('src/index.js', () => {
 		expect(execCalls).toContain('git fetch -n origin refs/heads/main:refs/heads/main');
 		expect(execCalls).toContain('git reset --hard refs/heads/main');
 		expect(logs).toContain('No PR associated with this action run. Not posting a check or comment.');
-		expect(octokit.issues.listComments).not.toHaveBeenCalled();
-		expect(octokit.issues.createComment).not.toHaveBeenCalled();
-		expect(octokit.checks.create).not.toHaveBeenCalled();
+		expect(octokit.rest.issues.listComments).not.toHaveBeenCalled();
+		expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+		expect(octokit.rest.checks.create).not.toHaveBeenCalled();
 	});
 
 	test('fails on unsupported events', async () => {
@@ -513,7 +519,7 @@ describe('src/index.js', () => {
 			}
 		});
 
-		const body = octokit.issues.createComment.mock.calls[0][0].body;
+		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
 		expect(body).not.toContain('**Size Change:**');
 		expect(body).not.toContain('**Total Size:**');
 		expect(body).not.toContain('dist/b.js');
@@ -530,7 +536,7 @@ describe('src/index.js', () => {
 			inputs: { 'strip-hash': '\\.(\\w{5})\\.js$' }
 		});
 
-		const body = octokit.issues.createComment.mock.calls[0][0].body;
+		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
 		expect(body).toContain('| `dist/index.*****.js` | 1.2 kB | +200 B (+20%) | 🚨 |');
 		expect(body).not.toContain('abcde');
 		expect(body).not.toContain('fghij');
@@ -542,6 +548,6 @@ describe('src/index.js', () => {
 		});
 
 		expect(failure).toBe('build exploded');
-		expect(octokit.issues.createComment).not.toHaveBeenCalled();
+		expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
 	});
 });

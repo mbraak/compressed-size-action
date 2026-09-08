@@ -27,7 +27,7 @@ import {
 async function run(octokit, context, token) {
   const { owner, repo, number: pull_number } = context.issue;
 
-  // const pr = (await octokit.pulls.get({ owner, repo, pull_number })).data;
+  // const pr = (await octokit.rest.pulls.get({ owner, repo, pull_number })).data;
   try {
     debug("pr" + JSON.stringify(context.payload, null, 2));
   } catch (e) {}
@@ -214,7 +214,7 @@ async function run(octokit, context, token) {
     startGroup(`Updating stats PR comment`);
     let commentId;
     try {
-      const comments = (await octokit.issues.listComments(commentInfo)).data;
+      const comments = (await octokit.rest.issues.listComments(commentInfo)).data;
       const commentRegExp = new RegExp(
         `<sub>\\s*(compressed|gzip)-size-action${commentKey ? `::${commentKey}` : ""}</sub>`,
       );
@@ -232,7 +232,7 @@ async function run(octokit, context, token) {
     if (commentId) {
       console.log(`Updating previous comment #${commentId}`);
       try {
-        await octokit.issues.updateComment({
+        await octokit.rest.issues.updateComment({
           ...context.repo,
           comment_id: commentId,
           body: comment.body,
@@ -247,13 +247,13 @@ async function run(octokit, context, token) {
     if (!commentId) {
       console.log("Creating new comment");
       try {
-        await octokit.issues.createComment(comment);
+        await octokit.rest.issues.createComment(comment);
       } catch (e) {
         console.log(`Error creating comment: ${e.message}`);
         console.log(`Submitting a PR review comment instead...`);
         try {
           const issue = context.issue;
-          await octokit.pulls.createReview({
+          await octokit.rest.pulls.createReview({
             owner: issue.owner,
             repo: issue.repo,
             pull_number: issue.number,
@@ -289,7 +289,7 @@ async function run(octokit, context, token) {
  * @param {ActionContext} context
  */
 async function createCheck(octokit, context) {
-  const check = await octokit.checks.create({
+  const check = await octokit.rest.checks.create({
     ...context.repo,
     name: "Compressed Size",
     head_sha: context.payload.pull_request.head.sha,
@@ -297,7 +297,7 @@ async function createCheck(octokit, context) {
   });
 
   return async (details) => {
-    await octokit.checks.update({
+    await octokit.rest.checks.update({
       ...context.repo,
       check_run_id: check.data.id,
       completed_at: new Date().toISOString(),
