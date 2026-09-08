@@ -24,3 +24,4 @@ jobs:
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           pattern: index.js
+          compression: "none"
