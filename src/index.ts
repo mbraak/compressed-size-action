@@ -7,7 +7,8 @@ import {
 } from "@actions/core";
 import { context, getOctokit } from "@actions/github";
 import { exec } from "@actions/exec";
-import { FileSizes } from "./fileSizes.js";
+import { FileSizes } from "./fileSizes";
+import type { CompressionMethod } from "./compression";
 import {
   getPackageManagerAndInstallScript,
   diffTable,
@@ -15,24 +16,33 @@ import {
   stripHash,
   getSortOrder,
   setOutput,
-} from "./utils.js";
+  errorMessage,
+} from "./utils";
 
-/**
- * @typedef {ReturnType<typeof import("@actions/github").getOctokit>} Octokit
- * @typedef {typeof import("@actions/github").context} ActionContext
- * @param {Octokit} octokit
- * @param {ActionContext} context
- * @param {string} token
- */
-async function run(octokit, context, token) {
-  const { owner, repo, number: pull_number } = context.issue;
+type Octokit = ReturnType<typeof getOctokit>;
+type ActionContext = typeof context;
 
-  // const pr = (await octokit.rest.pulls.get({ owner, repo, pull_number })).data;
+interface CheckResult {
+  conclusion: "success" | "failure" | "neutral";
+  output: {
+    title: string;
+    summary: string;
+  };
+}
+
+async function run(
+  octokit: Octokit,
+  context: ActionContext,
+  token: string,
+): Promise<void> {
+  const { number: pull_number } = context.issue;
+
   try {
     debug("pr" + JSON.stringify(context.payload, null, 2));
-  } catch (e) {}
+  } catch {}
 
-  let baseSha, baseRef;
+  let baseSha: string | null | undefined;
+  let baseRef: string | undefined;
   if (context.eventName == "push") {
     baseSha = context.payload.before;
     baseRef = context.payload.ref;
@@ -43,6 +53,7 @@ async function run(octokit, context, token) {
     context.eventName == "pull_request_target"
   ) {
     const pr = context.payload.pull_request;
+    if (!pr) throw new Error("missing context.payload.pull_request");
     baseSha = pr.base.sha;
     baseRef = pr.base.ref;
 
@@ -64,7 +75,7 @@ async function run(octokit, context, token) {
   if (getInput("cwd")) process.chdir(getInput("cwd"));
 
   const plugin = new FileSizes({
-    compression: /** @type {'gzip' | 'brotli'} */ (getInput("compression")),
+    compression: getInput("compression") as CompressionMethod,
     pattern: getInput("pattern") || "**/dist/**/*.{js,mjs,cjs}",
     exclude: getInput("exclude") || "{**/*.map,**/node_modules/**}",
     stripHash: stripHash(getInput("strip-hash")),
@@ -100,7 +111,7 @@ async function run(octokit, context, token) {
     await exec(`git fetch -n origin ${baseRef}:${baseRef}`);
     console.log("successfully fetched base.ref");
   } catch (e) {
-    console.log("fetching base.ref failed", e.message);
+    console.log("fetching base.ref failed", errorMessage(e));
     if (baseSha === null) {
       throw new Error("base.ref fetch failed and no base.sha as fallback");
     } else {
@@ -108,11 +119,11 @@ async function run(octokit, context, token) {
         await exec(`git fetch -n origin ${baseSha}`);
         console.log("successfully fetched base.sha");
       } catch (e) {
-        console.log("fetching base.sha failed", e.message);
+        console.log("fetching base.sha failed", errorMessage(e));
         try {
           await exec(`git fetch -n`);
         } catch (e) {
-          console.log("fetch failed", e.message);
+          console.log("fetch failed", errorMessage(e));
         }
       }
     }
@@ -156,10 +167,10 @@ async function run(octokit, context, token) {
 
   const oldSizes = await plugin.readFromDisk(cwd);
 
-  const diff = await plugin.getDiff(oldSizes, newSizes);
+  const diff = plugin.getDiff(oldSizes, newSizes);
 
   startGroup(`Size Differences:`);
-  const cliText = await plugin.printSizes(diff);
+  const cliText = plugin.printSizes(diff);
   console.log(cliText);
   endGroup();
 
@@ -212,21 +223,22 @@ async function run(octokit, context, token) {
     }
   } else {
     startGroup(`Updating stats PR comment`);
-    let commentId;
+    let commentId: number | undefined;
     try {
-      const comments = (await octokit.rest.issues.listComments(commentInfo)).data;
+      const comments = (await octokit.rest.issues.listComments(commentInfo))
+        .data;
       const commentRegExp = new RegExp(
         `<sub>\\s*(compressed|gzip)-size-action${commentKey ? `::${commentKey}` : ""}</sub>`,
       );
       for (let i = comments.length; i--; ) {
         const c = comments[i];
-        if (commentRegExp.test(c.body)) {
+        if (c.body && commentRegExp.test(c.body)) {
           commentId = c.id;
           break;
         }
       }
     } catch (e) {
-      console.log("Error checking for previous comments: " + e.message);
+      console.log("Error checking for previous comments: " + errorMessage(e));
     }
 
     if (commentId) {
@@ -238,8 +250,8 @@ async function run(octokit, context, token) {
           body: comment.body,
         });
       } catch (e) {
-        console.log("Error editing previous comment: " + e.message);
-        commentId = null;
+        console.log("Error editing previous comment: " + errorMessage(e));
+        commentId = undefined;
       }
     }
 
@@ -249,7 +261,7 @@ async function run(octokit, context, token) {
       try {
         await octokit.rest.issues.createComment(comment);
       } catch (e) {
-        console.log(`Error creating comment: ${e.message}`);
+        console.log(`Error creating comment: ${errorMessage(e)}`);
         console.log(`Submitting a PR review comment instead...`);
         try {
           const issue = context.issue;
@@ -261,7 +273,7 @@ async function run(octokit, context, token) {
             body: comment.body,
           });
         } catch (e) {
-          console.log(`Error creating PR review: ${e.message}`);
+          console.log(`Error creating PR review: ${errorMessage(e)}`);
           outputRawMarkdown = true;
         }
       }
@@ -285,18 +297,16 @@ async function run(octokit, context, token) {
 
 /**
  * Create a check and return a function that updates (completes) it
- * @param {Octokit} octokit
- * @param {ActionContext} context
  */
-async function createCheck(octokit, context) {
+async function createCheck(octokit: Octokit, context: ActionContext) {
   const check = await octokit.rest.checks.create({
     ...context.repo,
     name: "Compressed Size",
-    head_sha: context.payload.pull_request.head.sha,
+    head_sha: context.payload.pull_request?.head.sha,
     status: "in_progress",
   });
 
-  return async (details) => {
+  return async (details: CheckResult): Promise<void> => {
     await octokit.rest.checks.update({
       ...context.repo,
       check_run_id: check.data.id,
@@ -313,6 +323,6 @@ async function createCheck(octokit, context) {
     const octokit = getOctokit(token);
     await run(octokit, context, token);
   } catch (e) {
-    setFailed(e.message);
+    setFailed(errorMessage(e));
   }
 })();

@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`src/index.js > builds both branches and posts a new PR comment 1`] = `
+exports[`src/index.ts > builds both branches and posts a new PR comment 1`] = `
 "**Size Change:** +400 B (+33.33%) 🚨
 
 **Total Size:** 1.6 kB

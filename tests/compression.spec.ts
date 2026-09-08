@@ -1,15 +1,20 @@
 import zlib from "node:zlib";
 
-import { noop, compressContent } from "../src/compression.js";
+import {
+  noop,
+  compressContent,
+  type CompressionMethod,
+} from "../src/compression";
 
 const REPETITIVE = "export const x = 1;\n".repeat(200);
 const UNICODE = "héllo wörld — 日本語 🎉";
 
 /** Mirrors the options gzip-size passes to zlib. */
-const expectedGzipSize = (input) => zlib.gzipSync(input, { level: 9 }).length;
+const expectedGzipSize = (input: string): number =>
+  zlib.gzipSync(input, { level: 9 }).length;
 
 /** Mirrors the options brotli-size passes to zlib. */
-const expectedBrotliSize = (input) => {
+const expectedBrotliSize = (input: string): number => {
   const buffer = Buffer.from(input, "utf8");
   return zlib.brotliCompressSync(buffer, {
     params: {
@@ -31,7 +36,7 @@ describe("noop", () => {
 
 describe("compressContent", () => {
   test("always resolves to a number", async () => {
-    for (const method of /** @type {const} */ (["gzip", "brotli", "none"])) {
+    for (const method of ["gzip", "brotli", "none"] as const) {
       const result = compressContent(method, REPETITIVE);
       expect(result).toBeInstanceOf(Promise);
       const size = await result;
@@ -84,7 +89,7 @@ describe("compressContent", () => {
 
   test("rejects for an unknown compression method", async () => {
     await expect(
-      compressContent(/** @type {any} */ ("zstd"), REPETITIVE),
+      compressContent("zstd" as CompressionMethod, REPETITIVE),
     ).rejects.toThrow(TypeError);
   });
 });
