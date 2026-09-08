@@ -7,7 +7,7 @@ import {
 } from "@actions/core";
 import { context, getOctokit } from "@actions/github";
 import { exec } from "@actions/exec";
-import { SizePlugin } from "./size-plugin";
+import { FileSizes } from "./fileSizes.js";
 import {
   getPackageManagerAndInstallScript,
   diffTable,
@@ -63,7 +63,7 @@ async function run(octokit, context, token) {
 
   if (getInput("cwd")) process.chdir(getInput("cwd"));
 
-  const plugin = new SizePlugin({
+  const plugin = new FileSizes({
     compression: /** @type {'gzip' | 'brotli'} */ (getInput("compression")),
     pattern: getInput("pattern") || "**/dist/**/*.{js,mjs,cjs}",
     exclude: getInput("exclude") || "{**/*.map,**/node_modules/**}",

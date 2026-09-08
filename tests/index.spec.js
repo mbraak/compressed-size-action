@@ -45,9 +45,9 @@ vi.mock('@actions/exec', () => ({
 	})
 }));
 
-vi.mock('../src/size-plugin/index.js', async (importOriginal) => {
+vi.mock('../src/fileSizes.js', async (importOriginal) => {
 	const actual = /** @type {any} */ (await importOriginal());
-	class SizePlugin extends actual.SizePlugin {
+	class FileSizes extends actual.FileSizes {
 		readFromDisk = async () => {
 			const sizes = mocks.sizes.shift() ?? {};
 			/** @type {Record<string, number>} */
@@ -58,7 +58,7 @@ vi.mock('../src/size-plugin/index.js', async (importOriginal) => {
 			return result;
 		};
 	}
-	return { ...actual, SizePlugin };
+	return { ...actual, FileSizes };
 });
 
 const DEFAULT_INPUTS = {
