@@ -127,6 +127,17 @@ async function run(
 
   const newMeasurements = await measure(cwd);
 
+  // A pattern that matches nothing almost always means a misconfigured
+  // `pattern` or `cwd`, so fail before spending time on the base build.
+  const unmatched = trackers
+    .filter((_, i) => Object.keys(newMeasurements[i].sizes).length === 0)
+    .map(({ pattern }) => pattern);
+  if (unmatched.length) {
+    throw new Error(
+      `No files found for pattern${unmatched.length > 1 ? "s" : ""}: ${unmatched.map((p) => `"${p}"`).join(", ")}. Check the "pattern", "exclude" and "cwd" inputs and make sure the build script produces the expected output.`,
+    );
+  }
+
   // In case the build step alters a JSON-file, ....
   await exec(`git reset --hard`);
 

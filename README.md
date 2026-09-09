@@ -168,6 +168,8 @@ jobs:
 
 Files are collected by finding matches for `pattern`, then any of those that match `exclude` are ignored. For that reason, most projects don't need to modify `exclude`.
 
+If a pattern matches no files in the build of the pull request, the action fails. This usually means the pattern, `exclude` or `cwd` is wrong, or the build script writes its output somewhere else.
+
 Several patterns can be given on separate lines. Each pattern is reported in its own table, headed by the pattern, which is handy for monorepos or for keeping different kinds of output apart:
 
 ```yaml

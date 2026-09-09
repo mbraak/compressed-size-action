@@ -643,6 +643,36 @@ describe('src/index.ts', () => {
 		expect(body).not.toContain('Gzip');
 	});
 
+	test('fails when a pattern matches no files in the current build', async () => {
+		const { failure, execCalls, octokit } = await runAction({
+			sizes: [{}, OLD_SIZES],
+			inputs: { pattern: 'build/**/*.js' }
+		});
+
+		expect(failure).toBe(
+			'No files found for pattern: "build/**/*.js". Check the "pattern", "exclude" and "cwd" inputs and make sure the build script produces the expected output.'
+		);
+		// Fails before the base branch is checked out and built.
+		expect(execCalls).toEqual(['npm ci', 'npm run build']);
+		expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+	});
+
+	test('names every unmatched pattern when several are configured', async () => {
+		const { failure } = await runAction({
+			sizes: [{}, { 'packages/lib/dist/index.js': 1000 }, {}],
+			inputs: { pattern: 'packages/app/dist/**/*.js\npackages/lib/dist/**/*.js\npackages/cli/dist/**/*.js' }
+		});
+
+		expect(failure).toContain('No files found for patterns: "packages/app/dist/**/*.js", "packages/cli/dist/**/*.js"');
+	});
+
+	test('does not fail when files only exist in the current build', async () => {
+		const { failure, octokit } = await runAction({ sizes: [NEW_SIZES, {}] });
+
+		expect(failure).toBeNull();
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
+	});
+
 	test('fails the action when the build fails', async () => {
 		const { failure, octokit } = await runAction({
 			execFailures: { 'npm run build': new Error('build exploded') }
