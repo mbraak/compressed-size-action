@@ -159,12 +159,44 @@ test('diffTable with gzip information', () => {
 });
 
 test('diffTable names the compression method in the title', () => {
-	const files = [{ filename: 'one.js', size: 5000, delta: 2500 }];
+	const files = [
+		{ filename: 'one.js', size: 5000, delta: 2500 },
+		{ filename: 'two.js', size: 3000, delta: -300 }
+	];
 	const options = { sortBy: 'Filename:asc' as const };
 
 	expect(diffTable(files, { ...options, compression: 'gzip' })).toContain('📦 <strong>View Changed (gzip)</strong>');
 	expect(diffTable(files, { ...options, compression: 'brotli' })).toContain('📦 <strong>View Changed (brotli)</strong>');
 	expect(diffTable(files, { ...options, compression: 'none' })).toContain('📦 <strong>View Changed (uncompressed)</strong>');
+});
+
+test('diffTable summarises a single file on one line', () => {
+	const options = {
+		compression: 'none' as const,
+		showTotal: true,
+		collapseUnchanged: true,
+		omitUnchanged: false,
+		minimumChangeThreshold: 1,
+		sortBy: 'Filename:asc' as const
+	};
+
+	// No table and no totals: the line already carries the size, change and icon.
+	const grown = diffTable([{ filename: 'one.js', size: 5000, delta: 2500 }], options);
+	expect(grown).toBe('**`one.js`:** 5 kB, +2.5 kB (+100%) 🆘');
+
+	// An unchanged file only shows its size.
+	const unchanged = diffTable([{ filename: 'one.js', size: 5000, delta: 0 }], options);
+	expect(unchanged).toBe('**`one.js`:** 5 kB');
+
+	// Small changes have no icon.
+	const nudged = diffTable([{ filename: 'one.js', size: 5000, delta: 9 }], options);
+	expect(nudged).toBe('**`one.js`:** 5 kB, +9 B (+0.18%)');
+
+	// The gzip figures follow on a second line.
+	const withGzip = diffTable([{ filename: 'one.js', size: 5000, delta: 2500 }], options, [
+		{ filename: 'one.js', size: 1500, delta: 500 }
+	]);
+	expect(withGzip).toBe('**`one.js`:** 5 kB, +2.5 kB (+100%) 🆘\n\n**Gzip:** 1.5 kB, +500 B (+50%)');
 });
 
 test('parsePatterns', () => {
@@ -216,8 +248,10 @@ test('diffReport', () => {
 	expect(multi.slice(appHeading, libHeading)).toContain('**Total Size:** 5.3 kB');
 	expect(multi.slice(appHeading, libHeading)).toContain('| `app/index.js` | 5 kB | +2.5 kB (+100%) | 🆘 |');
 	expect(multi.slice(appHeading, libHeading)).toContain('View Unchanged');
-	expect(multi.slice(libHeading)).toContain('**Total Size:** 1 kB');
-	expect(multi.slice(libHeading)).toContain('| `lib/index.js` | 1 kB | -100 B (-9.09%) | ✅ |');
+	// A pattern with a single file is summarised on one line, without a table or totals.
+	expect(multi.slice(libHeading)).toContain('**`lib/index.js`:** 1 kB, -100 B (-9.09%) ✅');
+	expect(multi.slice(libHeading)).not.toContain('**Total Size:**');
+	expect(multi.slice(libHeading)).not.toContain('<details');
 	expect(multi.slice(libHeading)).not.toContain('View Unchanged');
 	expect(multi).not.toMatch(/\n{3,}/);
 	expect(multi).toMatchSnapshot();
