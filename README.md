@@ -179,6 +179,8 @@ with:
     packages/lib/dist/**/*.js
 ```
 
+A pattern that matches exactly one file is summarised on a single line with the file's size and change instead of a table.
+
 The default values for `pattern` and `exclude` are as follows:
 
 ```yaml

@@ -186,6 +186,27 @@ function compressionLabel(compression: CompressionMethod): string {
 	return compression === 'none' ? 'uncompressed' : compression;
 }
 
+/**
+ * One-line summary for a pattern that matched a single file. A table adds
+ * nothing over the size, change and icon of that one file, and the totals
+ * would only repeat it.
+ */
+function singleFileSummary(file: Diff, gzip?: Diff): string {
+	const line = (label: string, { size, delta }: Diff, withIcon: boolean): string => {
+		const originalSize = size - delta;
+		const parts = [prettyBytes(size)];
+		if (delta !== 0) parts.push(getDeltaText(delta, originalSize));
+		const icon = withIcon ? iconForDifference(delta, originalSize) : '';
+		return `${label} ${parts.join(', ')}${icon ? ` ${icon}` : ''}`;
+	};
+
+	let out = line(`**\`${file.filename}\`:**`, file, true);
+	if (gzip) {
+		out += `\n\n${line('**Gzip:**', gzip, false)}`;
+	}
+	return out;
+}
+
 function detailsSection(title: string, rows: string[][], open: boolean): string {
 	return `<details${open ? ' open' : ''}><summary>${title}</summary>\n\n${markdownTable(COLUMNS, rows)}\n\n</details>`;
 }
@@ -195,12 +216,19 @@ function detailsSection(title: string, rows: string[][], open: boolean): string 
  *
  * When a second diff measured with gzip is given, the changed files are listed
  * again in a "View Changed (gzip)" table and the totals include gzip figures.
+ *
+ * A single file is summarised on one line instead of a table.
  */
 export function diffTable(
 	files: Diff[],
 	{ compression, showTotal, collapseUnchanged, omitUnchanged, minimumChangeThreshold = 1, sortBy }: DiffTableOptions,
 	gzipFiles?: Diff[]
 ): string {
+	if (files.length === 1) {
+		const [file] = files;
+		return singleFileSummary(file, gzipFiles?.find(gzip => gzip.filename === file.filename));
+	}
+
 	const changedRows: string[][] = [];
 	const unChangedRows: string[][] = [];
 	const gzipChangedRows: string[][] = [];

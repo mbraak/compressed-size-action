@@ -564,7 +564,7 @@ describe('src/index.ts', () => {
 		});
 
 		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
-		expect(body).toContain('| `dist/index.*****.js` | 1.2 kB | +200 B (+20%) | 🚨 |');
+		expect(body).toContain('**`dist/index.*****.js`:** 1.2 kB, +200 B (+20%) 🚨');
 		expect(body).not.toContain('abcde');
 		expect(body).not.toContain('fghij');
 	});
@@ -576,15 +576,10 @@ describe('src/index.ts', () => {
 		const { failure, octokit, logs } = await runAction({ sizes, gzipSizes, inputs: { compression: 'none' } });
 
 		expect(failure).toBeNull();
+		// A single file is summarised on one line, with the gzip figures underneath.
 		const body = octokit.rest.issues.createComment.mock.calls[0][0].body;
-		expect(body).toContain('**Size Change:** +2 kB (+20%) 🚨');
-		expect(body).toContain('**Gzip Change:** +500 B (+14.29%)');
-		expect(body).toContain('**Total Size:** 12 kB');
-		expect(body).toContain('**Total Gzip Size:** 4 kB');
-		expect(body).toContain('<summary>📦 <strong>View Changed (uncompressed)</strong></summary>');
-		expect(body).toContain('| `dist/index.js` | 12 kB | +2 kB (+20%) | 🚨 |');
-		expect(body).toContain('<summary>📦 <strong>View Changed (gzip)</strong></summary>');
-		expect(body).toContain('| `dist/index.js` | 4 kB | +500 B (+14.29%) | ⚠️ |');
+		expect(body).toContain('**`dist/index.js`:** 12 kB, +2 kB (+20%) 🚨\n\n**Gzip:** 4 kB, +500 B (+14.29%)');
+		expect(body).not.toContain('<details');
 		expect(logs).toContain(' dist/index.js ⏤ 12 kB (+2 kB)\n');
 		expect(logs).toContain(' dist/index.js ⏤ 4 kB (+500 B)\n');
 	});
@@ -595,12 +590,12 @@ describe('src/index.ts', () => {
 		expect(readPatterns).toEqual(['**/dist/**/*.{js,mjs,cjs}', '**/dist/**/*.{js,mjs,cjs}']);
 	});
 
-	test('reports one table per configured pattern', async () => {
+	test('reports one section per configured pattern', async () => {
 		// Reads happen per pattern in order: PR build for both, then base build for both.
 		const sizes: FileSizeMap[] = [
-			{ 'packages/app/dist/index.js': 5000 },
+			{ 'packages/app/dist/index.js': 5000, 'packages/app/dist/vendor.js': 300 },
 			{ 'packages/lib/dist/index.js': 1000 },
-			{ 'packages/app/dist/index.js': 2500 },
+			{ 'packages/app/dist/index.js': 2500, 'packages/app/dist/vendor.js': 300 },
 			{ 'packages/lib/dist/index.js': 1100 }
 		];
 
@@ -622,14 +617,16 @@ describe('src/index.ts', () => {
 		const libHeading = body.indexOf('### `packages/lib/dist/**/*.js`');
 		expect(appHeading).toBe(0);
 		expect(libHeading).toBeGreaterThan(appHeading);
-		expect(body.slice(appHeading, libHeading)).toContain('**Size Change:** +2.5 kB (+100%) 🆘');
+		// Several files get totals and a table.
+		expect(body.slice(appHeading, libHeading)).toContain('**Size Change:** +2.5 kB (+89.29%) 🆘');
 		expect(body.slice(appHeading, libHeading)).toContain('| `packages/app/dist/index.js` | 5 kB | +2.5 kB (+100%) | 🆘 |');
-		expect(body.slice(libHeading)).toContain('**Size Change:** -100 B (-9.09%) ✅');
-		expect(body.slice(libHeading)).toContain('| `packages/lib/dist/index.js` | 1 kB | -100 B (-9.09%) | ✅ |');
+		// A single file is summarised on one line instead.
+		expect(body.slice(libHeading)).toContain('**`packages/lib/dist/index.js`:** 1 kB, -100 B (-9.09%) ✅');
+		expect(body.slice(libHeading)).not.toContain('<details');
 		expect(body).toMatch(FOOTER_REGEXP);
 
 		// The job log gets one group per pattern as well.
-		expect(logs).toContain(' packages/app/dist/index.js ⏤ 5 kB (+2.5 kB)\n');
+		expect(logs.join('')).toContain('  packages/app/dist/index.js ⏤ 5 kB (+2.5 kB)\n packages/app/dist/vendor.js ⏤ 300 B\n');
 		expect(logs).toContain(' packages/lib/dist/index.js ⏤ 1 kB (-100 B)\n');
 	});
 

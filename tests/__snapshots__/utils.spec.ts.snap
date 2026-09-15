@@ -25,17 +25,7 @@ exports[`diffReport 1`] = `
 
 ### \`lib/**/*.js\`
 
-**Size Change:** -100 B (-9.09%) ✅
-
-**Total Size:** 1 kB
-
-<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
-
-| Filename | Size | Change |  |
-| :--- | :---: | :---: | :---: |
-| \`lib/index.js\` | 1 kB | -100 B (-9.09%) | ✅ |
-
-</details>"
+**\`lib/index.js\`:** 1 kB, -100 B (-9.09%) ✅"
 `;
 
 exports[`diffTable 1`] = `
@@ -171,19 +161,7 @@ exports[`diffTable 6`] = `
 "
 `;
 
-exports[`diffTable 7`] = `
-"**Size Change:** +2.5 kB (+100%) 🆘
-
-**Total Size:** 5 kB
-
-<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
-
-| Filename | Size | Change |  |
-| :--- | :---: | :---: | :---: |
-| \`one.js\` | 5 kB | +2.5 kB (+100%) | 🆘 |
-
-</details>"
-`;
+exports[`diffTable 7`] = `"**\`one.js\`:** 5 kB, +2.5 kB (+100%) 🆘"`;
 
 exports[`diffTable 8`] = `
 "**Size Change:** +9 B (+0.04%) 
