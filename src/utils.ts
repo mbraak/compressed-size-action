@@ -214,8 +214,8 @@ function detailsSection(title: string, rows: string[][], open: boolean): string 
 /**
  * Create a Markdown table showing diff data.
  *
- * When a second diff measured with gzip is given, the changed files are listed
- * again in a "View Changed (gzip)" table and the totals include gzip figures.
+ * When a second diff measured with gzip is given, the totals include gzip
+ * figures. The tables only list the primary sizes.
  *
  * A single file is summarised on one line instead of a table.
  */
@@ -231,7 +231,6 @@ export function diffTable(
 
 	const changedRows: string[][] = [];
 	const unChangedRows: string[][] = [];
-	const gzipChangedRows: string[][] = [];
 
 	const [sortByColumn, sortByDirection] = sortBy.split(':') as [DiffTableColumn, SortOrder];
 	const key = columnIndex[sortByColumn];
@@ -254,7 +253,7 @@ export function diffTable(
 		totalGzipSize += gzip?.size ?? 0;
 
 		// A file counts as unchanged based on its primary size, so the gzip
-		// table lists exactly the files from the primary changed table.
+		// total covers exactly the files from the changed table.
 		const isUnchanged = Math.abs(delta) < minimumChangeThreshold;
 
 		if (!isUnchanged) {
@@ -268,7 +267,6 @@ export function diffTable(
 			unChangedRows.push(sizeRow(file));
 		} else {
 			changedRows.push(sizeRow(file));
-			if (gzip) gzipChangedRows.push(sizeRow(gzip));
 		}
 	}
 
@@ -276,10 +274,6 @@ export function diffTable(
 
 	if (changedRows.length !== 0) {
 		out = detailsSection(`📦 <strong>View Changed (${compressionLabel(compression)})</strong>`, changedRows, true);
-	}
-
-	if (gzipChangedRows.length !== 0) {
-		out += `\n\n${detailsSection('📦 <strong>View Changed (gzip)</strong>', gzipChangedRows, true)}`;
 	}
 
 	if (unChangedRows.length !== 0) {
