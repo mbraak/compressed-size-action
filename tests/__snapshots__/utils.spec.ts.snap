@@ -263,16 +263,6 @@ exports[`diffTable with gzip information 1`] = `
 
 </details>
 
-<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>
-
-| Filename | Size | Change |  |
-| :--- | :---: | :---: | :---: |
-| \`four.js\` | 90 B | +90 B (new file) | 🆕 |
-| \`one.js\` | 1.5 kB | +500 B (+50%) | 🆘 |
-| \`two.js\` | 1.6 kB | -400 B (-20%) | 🎉 |
-
-</details>
-
 <details><summary>ℹ️ <strong>View Unchanged</strong></summary>
 
 | Filename | Size |

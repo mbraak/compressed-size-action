@@ -142,14 +142,11 @@ test('diffTable with gzip information', () => {
 	expect(out).toContain('| Filename | Size | Change |  |');
 	expect(out).not.toContain('| Gzip Size |');
 
-	// Gzip gets its own tables listing the same files.
-	expect(out).toContain('<details open><summary>📦 <strong>View Changed (gzip)</strong></summary>');
-	expect(out).toContain('| `one.js` | 1.5 kB | +500 B (+50%) | 🆘 |');
-	expect(out).toContain('| `four.js` | 90 B | +90 B (new file) | 🆕 |');
-	// Unchanged files only appear once, without a gzip counterpart.
+	// Gzip only shows up in the totals, not as a list of files.
+	expect(out).not.toContain('View Changed (gzip)');
+	expect(out).not.toContain('| `one.js` | 1.5 kB |');
 	expect(out).toContain('<details><summary>ℹ️ <strong>View Unchanged</strong></summary>');
 	expect(out).not.toContain('View Unchanged (gzip)');
-	expect(out).not.toContain('| `three.js` | 120 B |');
 	expect(out).toMatchSnapshot();
 
 	// Without gzip data the table keeps its original shape.
